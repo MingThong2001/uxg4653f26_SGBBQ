@@ -1,0 +1,56 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f7f7f2;
+  color: #26332b;
+}
+
+header {
+  padding: 48px 24px;
+  background: #244b3b;
+  color: white;
+  text-align: center;
+}
+
+header h1 {
+  margin: 0 0 12px;
+  font-size: 36px;
+}
+
+header p {
+  margin: 0;
+}
+
+main {
+  max-width: 1000px;
+  min-height: 60vh;
+  margin: auto;
+  padding: 32px 24px;
+}
+
+.pit-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.pit-card {
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e0e5df;
+}
+
+.pit-card h3 {
+  margin-top: 0;
+}
+
+footer {
+  padding: 20px;
+  text-align: center;
+  color: #657168;
+}
