@@ -1,0 +1,62 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lepakaki | BBQ Pit Map</title>
+
+  <!-- Leaflet map styles -->
+  <link
+    rel="stylesheet"
+    href="https://www.onemap.gov.sg/web-assets/libs/leaflet/leaflet.css"
+  />
+
+  <link rel="stylesheet" href="style.css">
+  <style>
+    #map {
+      width: 100%;
+      height: 600px;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Lepakaki</h1>
+    <p>Find your next BBQ spot in Singapore.</p>
+  </header>
+
+  <main>
+    <h2>Explore BBQ Pits</h2>
+    <div id="map"></div>
+  </main>
+
+  <!-- OneMap's Leaflet library -->
+  <script src="https://www.onemap.gov.sg/web-assets/libs/leaflet/onemap-leaflet.js"></script>
+
+  <script>
+    // Centre the map on Singapore
+    const map = L.map("map", {
+      center: [1.2868, 103.8545],
+      zoom: 12,
+      minZoom: 11,
+      maxZoom: 19
+    });
+
+    // Add the OneMap base layer
+    L.tileLayer(
+      "https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png",
+      {
+        detectRetina: true,
+        minZoom: 11,
+        maxZoom: 19,
+        attribution:
+          '<a href="https://www.onemap.gov.sg/" target="_blank">OneMap</a> | ' +
+          '<a href="https://www.sla.gov.sg/" target="_blank">Singapore Land Authority</a> | ' +
+          '&copy; contributors'
+      }
+    ).addTo(map);
+  </script>
+</body>
+</html>
