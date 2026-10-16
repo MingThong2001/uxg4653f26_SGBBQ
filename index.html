@@ -2,120 +2,462 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="globals.css">
-<link rel="stylesheet" href="styleguide.css">
-<link rel="stylesheet" href="style.css">
-<title>BBQ Pit Finder - Sign In</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BBQ Pit Finder</title>
 <style>
-  /* Applied requested dimensions to the login page container */
-  .login-page {
-    width: 402px;
-    height: 874px;
-    position: relative;
-    overflow: hidden;
-    margin: 0 auto;
-  }
+:root{
+  --bg:#0d0c0b;--card-a:#2b1608;--card-b:#151210;--line:#4a2a15;--line-soft:#2c2420;
+  --accent:#ff6a1a;--accent-soft:#ff9a5c;--head:#ffc9a0;--text:#f4e8de;--muted:#9a8c82;
+  --radius:18px;--gap:16px;--pad:20px;
+  font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:#050505;color:var(--text);line-height:1.4;display:flex;justify-content:center}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+:focus-visible{outline:2px solid var(--accent-soft);outline-offset:2px}
+ul{list-style:none;padding:0}
+.app{width:100%;max-width:440px;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);
+  padding-top:env(safe-area-inset-top,0px)}
+@media(min-width:560px){.app{margin:24px 0;min-height:0;height:min(900px,calc(100dvh - 48px));border-radius:36px;
+  border:1px solid #2a2523;overflow:hidden}}
+main{flex:1;overflow-y:auto;padding:var(--pad);display:flex;flex-direction:column;gap:var(--gap)}
+main.auth{justify-content:center;background:radial-gradient(120% 70% at 0% 100%,#a86f0b,transparent 55%),
+  radial-gradient(90% 60% at 100% 20%,#4a1a08,transparent 60%),#0d0c0b}
+
+/* type */
+.eyebrow{display:flex;align-items:center;gap:6px;color:var(--accent);font-size:.75rem;font-weight:600}
+h1{color:var(--head);font-size:clamp(1.7rem,7vw,2rem);line-height:1.15;font-weight:800}
+h2{font-size:1.1rem;font-weight:600}
+.sub{font-size:.9rem}
+.muted{color:var(--muted);font-size:.75rem}
+.accent{color:var(--accent)}
+.rating{color:var(--accent);font-size:.78rem}
+svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* cards + controls */
+.card{background:linear-gradient(160deg,var(--card-a),var(--card-b));border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.row{display:flex;align-items:center;gap:10px}
+.between{justify-content:space-between}
+.field{display:flex;align-items:center;gap:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#14100e;color:var(--muted);width:100%}
+.field svg{color:var(--accent)}
+.field input{flex:1;min-width:0;background:none;border:0;color:var(--text);font:inherit;outline:0}
+.field:focus-within{border-color:var(--accent)}
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{display:flex;justify-content:center;align-items:center;gap:8px;padding:14px;border-radius:12px;background:var(--accent);color:#fff;font-weight:700;width:100%}
+.btn.sm{width:auto;padding:8px 14px;font-size:.85rem}
+.link{color:var(--accent);font-weight:600;font-size:.82rem}
+.chip{padding:8px 14px;border-radius:999px;background:#1c1816;border:1px solid var(--line-soft);font-size:.8rem}
+.chips{display:flex;gap:10px;flex-wrap:wrap}
+.notice{display:flex;align-items:center;gap:10px;width:100%;font-size:.82rem;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(90deg,#4a2410,#2a1409)}
+.notice svg{color:var(--accent)}.notice .go{margin-left:auto}
+.toggle{display:flex;padding:3px;border-radius:999px;background:#201b18}
+.toggle button{display:flex;gap:6px;align-items:center;padding:7px 14px;border-radius:999px;font-size:.85rem;color:var(--muted)}
+.toggle [aria-pressed=true]{background:var(--accent);color:#fff;font-weight:600}
+.top{display:flex;justify-content:space-between;align-items:center;color:var(--accent-soft);font-weight:600}
+
+/* photos (CSS stand-ins for imagery) */
+.photo{background:var(--g);border-radius:14px;min-height:96px;position:relative}
+.photo-d{--g:linear-gradient(180deg,#9bb7c6 0 22%,#2f4a24 22% 55%,#7a6a4d 55%)}
+.photo-a{--g:linear-gradient(180deg,#f3c58a 0 25%,#5f8a2f 25% 70%,#44361f 70%)}
+.photo-c{--g:linear-gradient(180deg,#e9c796 0 28%,#5b7a30 28% 72%,#3d3320 72%)}
+
+/* pit cards */
+.pit{display:flex;flex-direction:column;gap:12px}
+.pit-main{display:grid;grid-template-columns:104px 1fr auto;gap:12px;align-items:start}
+.pit-main .photo{aspect-ratio:1/1.1;grid-row:span 1}
+.pit h3{font-size:1.05rem;line-height:1.2}
+.tag{display:inline-block;font-size:.68rem;padding:2px 8px;border-radius:8px;background:#3a3633;margin-bottom:6px}
+.meta{display:flex;flex-direction:column;gap:3px;font-size:.75rem;color:#c9bcb2;margin-top:4px}
+.price{font-weight:700;margin-top:6px}
+.pit-foot{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px;font-size:.78rem}
+.pit-foot .row{justify-content:space-between}
+.save{color:var(--muted)}.save[aria-pressed=true]{color:var(--accent)}.save[aria-pressed=true] svg{fill:currentColor}
+.save svg{width:1.3em;height:1.3em}
+
+/* map */
+.map{flex:1;min-height:340px;border-radius:var(--radius);overflow:hidden;display:grid;grid-template-rows:auto 1fr auto;gap:12px;padding:14px;
+  background:linear-gradient(180deg,#143c3c 0 55%,#0a1230 55%)}
+.pills{display:flex;justify-content:space-between}
+.pill{display:flex;gap:6px;align-items:center;padding:8px 14px;border-radius:999px;background:var(--accent);font-size:.8rem;font-weight:600}
+.pins{display:grid;grid-template-columns:repeat(3,1fr);align-items:center;justify-items:center;text-align:center;font-size:.7rem;color:#dbe7e6}
+.pin{display:flex;flex-direction:column;align-items:center;gap:4px}
+.pin .drop{width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--accent);display:grid;place-items:center}
+.pin .drop svg{transform:rotate(45deg)}
+.you{width:22px;height:22px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 0 0 12px rgba(40,110,255,.35)}
+
+/* details */
+.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.hero{aspect-ratio:16/10;display:flex;justify-content:space-between;align-items:flex-start;padding:12px}
+.hero .save{background:var(--accent);color:#fff;border-radius:50%;width:40px;height:40px;display:grid;place-items:center}
+.hero .badge{align-self:flex-end;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:10px;font-size:.7rem}
+.gallery .photo{aspect-ratio:3/2;min-height:0}
+.facts{display:flex;flex-direction:column;gap:14px}
+.fact{display:grid;grid-template-columns:40px 1fr;gap:12px;font-size:.88rem}
+.fact i{width:40px;height:40px;border:1px solid var(--line);border-radius:10px;display:grid;place-items:center;color:var(--accent)}
+.fact small{display:block;color:var(--accent-soft);font-size:.72rem}
+.fac-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px}
+.fac-grid div{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border:1px solid var(--line);border-radius:12px;font-size:.78rem}
+.fac-grid svg{color:var(--accent);width:1.5em;height:1.5em}
+.warn{background:linear-gradient(160deg,#4d2a14,#2c170b)}
+.warn h2{color:var(--accent-soft)}
+section.stack{display:flex;flex-direction:column;gap:10px}
+
+/* compare */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.duo>div{display:flex;flex-direction:column;gap:4px}
+.duo .photo{aspect-ratio:3/2;min-height:0;margin-bottom:6px}
+details.card summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;color:var(--accent-soft);font-weight:500}
+details.card summary::-webkit-details-marker{display:none}
+details.card summary::after{content:"";margin-left:auto;width:7px;height:7px;border:solid var(--accent);border-width:2px 2px 0 0;transform:rotate(-45deg);transition:transform .2s}
+details.card[open] summary::after{transform:rotate(135deg)}
+details.card .duo{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;font-size:.82rem}
+details.card .muted{margin-top:10px}
+.comparing{display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center;background:linear-gradient(90deg,#4a2410,#2a1409)}
+.comparing .photo{aspect-ratio:1;min-height:0}
+
+/* profile */
+.avatar{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);color:var(--accent);font-weight:700;background:#2a170c}
+.list{padding:0}
+.list li{display:flex;align-items:center;gap:12px;padding:14px;border-top:1px solid var(--line-soft);font-size:.9rem}
+.list li:first-child{border:0}
+.list svg{color:var(--accent)}
+.list small{display:block;color:var(--muted);font-size:.72rem}
+.list .go{margin-left:auto;color:var(--muted)}
+.switch{margin-left:auto;appearance:none;width:44px;height:26px;border-radius:999px;background:#3a3633;position:relative;cursor:pointer;transition:background .2s}
+.switch::after{content:"";position:absolute;inset:3px auto 3px 3px;width:20px;border-radius:50%;background:#f3b891;transition:transform .2s}
+.switch:checked{background:var(--accent)}.switch:checked::after{transform:translateX(18px)}
+
+/* auth */
+.auth-card{padding:24px 20px;display:flex;flex-direction:column;gap:14px;background:rgba(30,18,12,.55);backdrop-filter:blur(12px);text-align:center}
+.auth-card h1{font-size:1.8rem}
+.auth-card .eyebrow{align-self:flex-start}
+.or{display:flex;align-items:center;gap:12px;font-size:.85rem}
+.or::before,.or::after{content:"";flex:1;height:1px;background:#6b5a50}
+.go-btn{width:34px;height:34px;border-radius:50%;background:#5a2a14;display:grid;place-items:center;color:#fff}
+.social{justify-content:center;gap:12px;font-size:1.05rem}
+
+/* nav */
+nav{display:grid;grid-template-columns:repeat(3,1fr);padding:10px var(--pad) calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line-soft);background:#0d0c0b}
+nav button{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.78rem;color:var(--muted);font-weight:600}
+nav span{display:grid;place-items:center;padding:8px 22px;border-radius:999px}
+nav [aria-current=page]{color:var(--accent)}
+nav [aria-current=page] span{background:var(--accent);color:#fff}
+nav [aria-current=page]{color:var(--accent)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<main class="login-page">
-<img
-    class="asi-mong"
-    src="img/asi-mong-4yrlppy5qss-unsplash-1.png"
-    alt=""
-    aria-hidden="true"
-  >
-<div class="rectangle" aria-hidden="true"></div>
-<div class="status-bar" data-colors-mode="dark" aria-label="Device status">
-<div class="time" aria-label="Current time">
-<div class="frame">
-<p class="span-wrapper">
-<span class="text-wrapper">9:41</span>
-</p>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="flame" viewBox="0 0 24 24"><path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-9z"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+  <symbol id="bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></symbol>
+  <symbol id="compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol>
+  <symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></symbol>
+  <symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
+  <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-4 3-6 7-6s7 2 7 6M17 5a3.5 3.5 0 0 1 0 7M22 20c0-3-2-5-4-5.5"/></symbol>
+  <symbol id="drop" viewBox="0 0 24 24"><path d="M12 3s6 6 6 11a6 6 0 0 1-12 0c0-5 6-11 6-11z"/></symbol>
+  <symbol id="bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10c1 1 1 2 1 3h6c0-1 0-2 1-3a6 6 0 0 0-4-10z"/></symbol>
+  <symbol id="access" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="1.8"/><path d="M12 8v6h5l2 5M12 11H7M9 14a5 5 0 1 0 6 6"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="history" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2L4 8M4 4v4h4M12 8v4l3 2"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="swap" viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></symbol>
+  <symbol id="out" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6z"/></symbol>
+  <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
+</svg>
+
+<div class="app" id="app">
+  <main id="view" tabindex="-1"></main>
+  <nav id="nav" aria-label="Main" hidden>
+    <button data-go="explore" data-tab="explore"><span><svg class="i"><use href="#compass"/></svg></span>Explore</button>
+    <button data-go="saved" data-tab="saved"><span><svg class="i"><use href="#bookmark"/></svg></span>Saved</button>
+    <button data-go="profile" data-tab="profile"><span><svg class="i"><use href="#user"/></svg></span>Profile</button>
+  </nav>
 </div>
-</div>
-<div class="dynamic-island" aria-hidden="true"></div>
-<img
-        class="levels"
-        src="img/levels.svg"
-        alt=""
-        aria-hidden="true"
-      >
-</div>
-<article class="pit-card" aria-labelledby="page-title">
-<header class="page-header">
-<div class="header-tools">
-<div class="brand-or-back">
-<div class="flame" aria-hidden="true">
-<img
-                class="vector"
-                src="img/vector.svg"
-                alt=""
-              >
-</div>
-<span class="eyebrow">BBQ PIT FINDER</span>
-</div>
-</div>
-<div class="group">
-<h1 class="page-title" id="page-title">Welcome Back!</h1>
-<p class="div">Sign in to your Account</p>
-</div>
-</header>
-<form class="search-field" action="#" method="post">
-<label class="search-prompt" for="email">Email</label>
-<input
-        class="search-prompt-2"
-        id="email"
-        name="email"
-        type="email"
-        autocomplete="email"
-        placeholder="example@email.com"
-        required
-      >
-<div class="group-wrapper">
-<button
-            class="akar-icons-arrow-wrapper"
-            type="submit"
-            aria-label="Continue with email"
-          >
-<img
-              class="akar-icons-arrow"
-              src="img/akar-icons-arrow-right.svg"
-              alt=""
-              aria-hidden="true"
-            >
-</button>
-</div>
-</form>
-<div class="group-2" role="separator" aria-label="Or continue with">
-<div class="divider" aria-hidden="true"></div>
-<span class="text-wrapper-2">OR</span>
-<div class="divider-2" aria-hidden="true"></div>
-</div>
-<button class="search-field-2" type="button">
-<span class="search-prompt-3">Continue with Google</span>
-<img
-        class="google-favicon"
-        src="icons/google-favicon-2025-svg-1.png"
-        alt=""
-        aria-hidden="true"
-      >
-</button>
-<button class="search-field-2" type="button">
-<span class="search-prompt-4">Continue with Apple</span>
-<img
-        class="new-apple-logo-white"
-        src="icons/new-apple-logo-white-png-large-size-1.png"
-        alt=""
-        aria-hidden="true"
-      >
-</button>
-<p class="don-t-have-an">
-<span class="span">Don’t have an account? </span>
-<a class="text-wrapper-3" href="#">Sign up</a>
-</p>
-</article>
-</main>
+
+<script>
+'use strict';
+
+/* ---------- data ---------- */
+const PITS = {
+  D: { id:'D', area:'Area D', rating:4.6, reviews:24, access:'Stair-free access', accessLong:'Stair-free approach. Confirm access and path conditions with the managing agency.', fac:['Toilets','Water','Lights'], photo:'d' },
+  A: { id:'A', area:'Area A', rating:4.4, reviews:18, access:'Paved access',      accessLong:'Paved approach. Confirm route conditions before travelling.',                  fac:['Toilets','Water','Lights'], photo:'a' },
+  C: { id:'C', area:'Area C', rating:4.6, reviews:24, access:'Paved access',      accessLong:'Paved approach. Confirm route conditions before travelling.',                  fac:['Toilets','Parking'],       photo:'c' },
+};
+const PRICE = '$20/pit · 2hrs';
+const FAC_ICON = { Toilets:'pin', Water:'drop', Lights:'bulb', Parking:'compass' };
+
+const state = {
+  saved: new Set(['D','A']),
+  viewing: 'D',
+  comparing: ['D','A'],
+  baseline: 'D',
+  listMode: 'list',
+};
+
+/* ---------- helpers ---------- */
+const $ = (sel, root = document) => root.querySelector(sel);
+const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#${name}"/></svg>`;
+const saveBtn = id => `<button class="save" data-save="${id}" aria-pressed="${state.saved.has(id)}" aria-label="Save ${PITS[id].area}">${icon('bookmark')}</button>`;
+const notice = text => `<button class="notice" data-go="explore">${icon('info')}<span>${text}</span><span class="go">${icon('chev')}</span></button>`;
+const search = () => `<label class="field">${icon('search')}<input type="search" placeholder="Search by park, area or facility" aria-label="Search by park, area or facility"></label>`;
+const eyebrow = text => `<p class="eyebrow">${icon('flame')}${text}</p>`;
+
+function pitCard(id, { cta = true, label = '' } = {}) {
+  const p = PITS[id];
+  return `
+  <article class="card pit">
+    <div class="pit-main">
+      <div class="photo photo-${p.photo}" role="img" aria-label="Illustrative photo of ${p.area}"></div>
+      <div>
+        <span class="tag">Public Sector</span>
+        <h3>East Coast Park ${p.area}</h3>
+        <p class="rating">★ ${p.rating} (${p.reviews} demo reviews)</p>
+        <p class="meta"><span>${icon('pin')} East Coast Park, ${p.area}</span><span>${icon('compass')} Nearest MRT: confirm route</span></p>
+        <p class="price">${PRICE}</p>
+      </div>
+      ${saveBtn(id)}
+    </div>
+    ${cta ? `<div class="pit-foot">
+      <div class="row accent">${icon('access')}<span style="color:var(--text)">${p.access}</span></div>
+      <div class="row"><span>${p.fac.join(' · ')}</span><button class="link" data-pit="${id}">View Pit →</button></div>
+    </div>` : ''}
+    ${label}
+  </article>`;
+}
+
+const exploreHeader = mode => `
+  ${eyebrow('BBQ PIT FINDER')}
+  <h1>Find your fire.</h1>
+  ${search()}
+  <div class="filters">
+    <button class="field">${icon('cal')}<span>Date and time</span></button>
+    <button class="field">${icon('users')}<span>Number of guests</span></button>
+  </div>
+  <div class="row between">
+    <span class="row" style="font-weight:600;font-size:.9rem">${icon('compass')}East Coast Park</span>
+    <div class="toggle" role="group" aria-label="View mode">
+      <button data-go="map" aria-pressed="${mode==='map'}">${icon('pin')}Map</button>
+      <button data-go="explore" aria-pressed="${mode==='list'}">${icon('search')}List</button>
+    </div>
+  </div>`;
+
+/* ---------- screens ---------- */
+const screens = {
+  login: () => `
+    <section class="card auth-card">
+      ${eyebrow('BBQ PIT FINDER')}
+      <h1>Welcome Back!</h1>
+      <p class="sub">Sign in to your Account</p>
+      <label class="field" style="flex-direction:row;text-align:left">
+        <span style="flex:1"><small class="accent" style="display:block">Email</small>
+        <input type="email" placeholder="example@email.com" autocomplete="email"></span>
+        <button class="go-btn" data-go="explore" aria-label="Continue">${icon('chev')}</button>
+      </label>
+      <p class="or">OR</p>
+      <button class="field social" data-go="explore"><strong style="color:#4285f4">G</strong>Continue with Google</button>
+      <button class="field social" data-go="explore"><strong style="color:#fff"></strong>Continue with Apple</button>
+      <p class="sub">Don't have an account? <a href="#login" class="accent" style="text-decoration:none">Sign up</a></p>
+    </section>`,
+
+  explore: () => `
+    ${exploreHeader('list')}
+    ${['D','A'].map(id => pitCard(id)).join('')}
+    ${notice('Confirm facilities, availability and final prices on the official site.')}`,
+
+  map: () => `
+    ${exploreHeader('map')}
+    <section class="map" aria-label="Illustrative map of East Coast Park">
+      <div class="pills"><span class="pill">${icon('flame')}BBQ pits ✓</span><span class="pill">${icon('pin')}Facilities ✓</span></div>
+      <div class="pins">
+        <button class="pin" data-pit="A"><span class="drop">${icon('flame')}</span>Area A<br>120m<br>2min walk</button>
+        <span class="you" role="img" aria-label="Your location"></span>
+        <button class="pin" data-pit="D"><span class="drop">${icon('flame')}</span>Area D<br>85m<br>1min walk</button>
+      </div>
+      <p class="muted">Illustrative map · sample walking estimates</p>
+    </section>`,
+
+  pit: () => {
+    const p = PITS[state.viewing];
+    return `
+    <div class="top"><button data-back>‹ Back</button><button class="btn sm" data-go="search">${icon('swap')}Compare Pit</button></div>
+    <header><h1>East Coast Park</h1><p class="sub">${p.area} · Public-sector BBQ pit</p></header>
+    <div class="photo photo-${p.photo} hero">${saveBtn(p.id)}<span class="badge">1 / 3 · illustrative</span></div>
+    <div class="gallery">${['d','a','c'].map(k => `<div class="photo photo-${k}"></div>`).join('')}</div>
+    <div class="row between" style="align-items:flex-start">
+      <p><span class="rating" style="font-size:1.1rem">★ ${p.rating}</span><br><span class="muted">${p.reviews} demo reviews</span></p>
+      <p style="text-align:right"><strong style="font-size:1.1rem">${PRICE}</strong><br><span class="muted">Sample price · confirm on official site</span></p>
+    </div>
+    ${notice('Demo listing and illustrative photos. Reviews, amenities and sample price are not verified facts.')}
+    <section class="stack"><h2>Plan your visit</h2>
+      <ul class="facts">
+        <li class="fact"><i>${icon('compass')}</i><span><small>Organisation</small>Managing agency: confirmation pending</span></li>
+        <li class="fact"><i>${icon('clock')}</i><span><small>Operating times</small>Not confirmed. Check official booking times.</span></li>
+        <li class="fact"><i>${icon('pin')}</i><span><small>Address</small>East Coast Park, ${p.area}, Singapore. Confirm the exact pit location before travelling.</span></li>
+        <li class="fact"><i>${icon('users')}</i><span><small>Nearest MRT</small>Station and walking route: not yet verified</span></li>
+        <li class="fact"><i>${icon('access')}</i><span><small>Accessibility</small>${p.accessLong}</span></li>
+      </ul>
+    </section>
+    <section class="stack"><div class="row between"><h2>Facilities</h2><span class="link">Attributes</span></div>
+      <div class="fac-grid">${p.fac.map(f => `<div>${icon(FAC_ICON[f])}${f}</div>`).join('')}</div>
+      <p class="muted">Shelter and group capacity are unconfirmed. Check all facilities on the official listing.</p>
+    </section>
+    <section class="stack"><h2>Nearby facilities</h2>
+      <p class="sub">Look for toilets, parking and drinking water on the park's official map.</p>
+      <p class="muted">Exact locations, distances and opening times are not confirmed in this demo.</p></section>
+    <section class="card warn stack"><h2>Before you light up</h2>
+      <p class="sub">Check the official rules for permitted cooking times, group size and charcoal disposal. Keep paths clear and leave the pit tidy.</p>
+      <a class="link" href="#pit">Read managing agency's rules ↗</a></section>
+    <section class="stack"><div class="row between"><h2 style="color:var(--accent-soft)">Reviews</h2><span class="link">${p.rating} · ${p.reviews} demo reviews</span></div>
+      <blockquote class="card"><p class="row"><span class="avatar" style="width:36px;height:36px">${icon('user')}</span><span><strong style="font-size:.85rem">Anonymous · demo review</strong><br><span class="rating">★★★★★</span></span></p>
+      <p class="sub" style="margin:10px 0">“A lovely spot to gather by the sea. We would bring a torch and check the facilities before heading down.”</p>
+      <p class="muted accent">Sample mentions: lights · toilets</p></blockquote>
+      <button class="btn" style="background:#1c1816;border:1px solid var(--line-soft)">See more reviews</button></section>
+    <p class="card warn muted" style="font-size:.78rem"><strong style="display:block;color:var(--text);font-size:.85rem">Official confirmation needed</strong>Source: demo data · official listing not linked. Last verified: not yet verified.</p>
+    <p class="muted">Opens the managing agency's official website. Booking, availability and final prices are handled there, not in this app.</p>
+    <a class="btn" href="#pit" onclick="return false">Book now ${icon('out')}</a>`;
+  },
+
+  search: () => {
+    const base = PITS[state.baseline];
+    const others = Object.keys(PITS).filter(id => id !== state.baseline);
+    return `
+    ${eyebrow('Recently Seen')}
+    <h1>Search and compare</h1>
+    ${search()}
+    <div class="card comparing"><div class="photo photo-${base.photo}"></div>
+      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>East Coast Park · ${base.area}</strong><br><span class="muted">${PRICE} · sample</span></p>
+      <span class="accent">${icon('target')}</span></div>
+    <div class="chips"><span class="chip">East Coast Park</span><span class="chip">Toilets</span><span class="chip">Step-free</span></div>
+    <div class="row between"><h2>Recently Seen</h2><span class="link">${others.length} other pits</span></div>
+    ${others.slice(0,1).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}
+    <section class="card stack"><h2 style="font-size:1rem">Find the right fit for your gathering</h2>
+      <p class="muted" style="font-size:.85rem">Compare location, price, accessibility and facilities. No bookings are made in this app.</p></section>
+    ${notice('Confirm facilities, availability and final prices on the official site.')}`;
+  },
+
+  compare: () => {
+    const [a, b] = state.comparing.map(id => PITS[id]);
+    const section = (title, ic, left, right, note) => `
+      <details class="card" open><summary>${icon(ic)}${title}</summary>
+        <div class="duo"><p>${left}</p><p>${right}</p></div><p class="muted">${note}</p></details>`;
+    return `
+    <div class="top"><button data-back>‹ Back</button><button data-go="search">Change pit</button></div>
+    <header><h1>Which fire fits?</h1><p class="sub">Two spots. One easier decision.</p></header>
+    <div class="duo">${[a,b].map(p => `<div><div class="photo photo-${p.photo}"></div>
+      <span class="muted accent" style="font-size:.7rem">East Coast Park</span><h2 style="font-size:1.2rem">${p.area}</h2>
+      <span class="rating">★ ${p.rating} · ${p.reviews} demo reviews</span><strong>${PRICE}</strong></div>`).join('')}</div>
+    ${section('Location','pin',`East Coast Park<br>${a.area}`,`East Coast Park<br>${b.area}`,'Nearest MRT and walking route: confirm before travelling.')}
+    ${section('Price','compass',PRICE,PRICE,'Final prices and time slots are set by the official booking site.')}
+    ${section('Accessibility','access',a.access,b.access,'Demo attributes. Step-free access and route conditions need confirmation.')}
+    ${section('Facilities','flame',a.fac.join('<br>')+'<br>Shelter: unconfirmed',b.fac.join('<br>')+'<br>Shelter',"Illustrative amenities; check the managing agency's listing.")}
+    <div class="duo"><button class="btn" data-pit="${a.id}">View ${a.area}</button><button class="btn" data-pit="${b.id}">View ${b.area}</button></div>
+    ${notice('Demo comparison. Agency, facilities and availability have not been independently verified.')}`;
+  },
+
+  saved: () => `
+    ${eyebrow('BBQ PIT FINDER')}
+    <h1>Your favourite fires.</h1>
+    <p class="sub">Good spots, kept close for your next gathering.</p>
+    ${search()}
+    <button class="card row between" data-go="recent"><span class="row">${icon('history','accent')}<strong>View recently seen</strong></span>${icon('chev')}</button>
+    <div class="row between"><h2>Saved pits</h2><span class="link">${state.saved.size} places</span></div>
+    ${state.saved.size
+      ? [...state.saved].map(id => pitCard(id)).join('')
+      : '<p class="card sub">Nothing saved yet. Tap the bookmark on any pit to keep it here.</p>'}
+    ${notice("Your shortlist is not a reservation. Booking happens on the managing agency's official website.")}`,
+
+  recent: () => {
+    const group = (label, ids) => `<div class="row between"><h2>${label}</h2><span class="link">${ids.length} viewed</span></div>
+      ${ids.map(id => pitCard(id, { cta: false })).map((html, i) => html.replace('<article class="card pit">', `<article class="card pit" data-pit="${ids[i]}" tabindex="0">`)).join('')}`;
+    return `
+    ${eyebrow('Recently Seen')}
+    <h1>Pick up where you left off.</h1>
+    ${group('Today', ['D','A'])}
+    ${group('Yesterday', ['C'])}
+    <p class="muted">Only you can see your browsing history. Save a pit to keep it in your favourites.</p>
+    ${notice('History and review summaries. Pit information still needs official confirmation.')}`;
+  },
+
+  profile: () => `
+    ${eyebrow('BBQ PIT FINDER')}
+    <h1>Your Page</h1>
+    <section class="card row"><span class="avatar">AL</span><div><strong style="font-size:1.2rem">Alex Lim</strong><br><button class="link">✎ Edit Name</button></div></section>
+    <h2>Account Settings</h2>
+    <ul class="card list">
+      <li>${icon('user')}<span>Personal information<small>Name and email address</small></span><span class="go">${icon('chev')}</span></li>
+      <li>${icon('shield')}<span>Privacy &amp; security<small>Manage your account preferences</small></span><span class="go">${icon('chev')}</span></li>
+    </ul>
+    <h2>Notifications</h2>
+    <ul class="card list">
+      <li>${icon('bookmark')}<label for="n1">Saved pit updates<small>When information about your saved pits changes</small></label><input id="n1" class="switch" type="checkbox" checked></li>
+      <li>${icon('flame')}<label for="n2">Tips for your next BBQ<small>Occasional outdoor inspiration</small></label><input id="n2" class="switch" type="checkbox"></li>
+    </ul>
+    <h2>General Settings</h2>
+    <ul class="card list">
+      <li>${icon('compass')}<span>Language<small>English</small></span><span class="go">${icon('chev')}</span></li>
+      <li>${icon('info')}<span>Help &amp; feedback</span><span class="go">${icon('chev')}</span></li>
+      <li>${icon('info')}<span>About BBQ Pit Finder<small>Demo version · Terms &amp; privacy</small></span><span class="go">${icon('chev')}</span></li>
+    </ul>
+    <p class="muted row">${icon('out')}We help you find your fire. All bookings and payments stay on the managing agency's official website.</p>`,
+};
+
+/* which bottom-nav tab is highlighted per route */
+const TAB = { explore:'explore', map:'explore', pit:'explore', compare:'explore', search:'explore', saved:'saved', recent:'saved', profile:'profile' };
+
+/* ---------- router ---------- */
+const view = $('#view'), nav = $('#nav');
+const history = [];
+
+function go(route, { push = true } = {}) {
+  if (!screens[route]) route = 'login';
+  if (push) history.push(route);
+  view.innerHTML = screens[route]();
+  view.className = route === 'login' ? 'auth' : '';
+  view.scrollTop = 0;
+  nav.hidden = route === 'login';
+  nav.querySelectorAll('[data-tab]').forEach(b => {
+    if (b.dataset.tab === TAB[route]) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  view.dataset.route = route;
+  view.focus({ preventScroll: true });
+}
+
+function back() {
+  history.pop();
+  go(history[history.length - 1] || 'explore', { push: false });
+}
+
+/* ---------- events (delegated) ---------- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-go],[data-save],[data-pit],[data-compare],[data-back]');
+  if (!t) return;
+  if (t.dataset.save) {
+    const id = t.dataset.save;
+    state.saved.has(id) ? state.saved.delete(id) : state.saved.add(id);
+    // refresh in place so scroll position is kept
+    const top = view.scrollTop; go(view.dataset.route, { push: false }); view.scrollTop = top;
+  } else if (t.dataset.pit) {
+    state.viewing = t.dataset.pit; go('pit');
+  } else if (t.dataset.compare) {
+    state.comparing = [state.baseline, t.dataset.compare]; go('compare');
+  } else if ('back' in t.dataset) {
+    back();
+  } else {
+    if (t.dataset.go === 'search') state.baseline = state.viewing;
+    go(t.dataset.go);
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('article[data-pit]')) e.target.click();
+});
+
+go('login');
+</script>
 </body>
 </html>
