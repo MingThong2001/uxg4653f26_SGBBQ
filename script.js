@@ -368,7 +368,69 @@ function attachSearchListener() {
     }, 400);
   });
 }
+/* ==========================================================================
+   LIVE PUBLIC DATA INTEGRATION (Data.gov.sg APIs)
+   ========================================================================== */
 
+async function fetchWeatherForecast() {
+  try {
+    const res = await fetch("https://api-open.data.gov.sg/v2/real-time/api/twenty-four-hr-forecast");
+    const json = await res.json();
+    if (json.code === 0 && json.data && json.data.records.length > 0) {
+      const record = json.data.records[0];
+      return {
+        general: record.general.forecast.text,
+        tempLow: record.general.temperature.low,
+        tempHigh: record.general.temperature.high,
+        humidityLow: record.general.relativeHumidity.low,
+        humidityHigh: record.general.relativeHumidity.high
+      };
+    }
+  } catch (err) {
+    console.error("Weather API Error:", err);
+  }
+  return null;
+}
+
+async function fetchCarparkAvailability() {
+  try {
+    const res = await fetch("https://api.data.gov.sg/v1/transport/carpark-availability");
+    const json = await res.json();
+    if (json.items && json.items.length > 0) {
+      return json.items[0].carpark_data;
+    }
+  } catch (err) {
+    console.error("Carpark API Error:", err);
+  }
+  return [];
+}
+
+async function loadPitWeather() {
+  const weatherText = document.getElementById('weather-text');
+  if (!weatherText) return;
+
+  const weather = await fetchWeatherForecast();
+  if (weather) {
+    weatherText.innerHTML = `🌤️ <strong>${weather.general}</strong><br>Temp: ${weather.tempLow}°C – ${weather.tempHigh}°C | Humidity: ${weather.humidityLow}%–${weather.humidityHigh}%`;
+  } else {
+    weatherText.textContent = "Live weather data currently unavailable.";
+  }
+}
+
+async function loadPitCarparks() {
+  const carparkText = document.getElementById('carpark-text');
+  if (!carparkText) return;
+  
+  const carparks = await fetchCarparkAvailability();
+  if (carparks.length > 0) {
+    const carLots = carparks.filter(cp => cp.lot_type === 'C').slice(0, 3);
+    carparkText.innerHTML = carLots.map(cp => 
+      `<div>🅿️ Carpark ID ${cp.carpark_number || 'Lot'}: <strong>${cp.lots_available}</strong> / ${cp.total_lots} available (Cars)</div>`
+    ).join('') || "No car parking data found.";
+  } else {
+    carparkText.textContent = "Live carpark data currently unavailable.";
+  }
+}
 document.addEventListener('click', e => {
   const modeBtn = e.target.closest('[data-mode]');
   if (modeBtn) {
