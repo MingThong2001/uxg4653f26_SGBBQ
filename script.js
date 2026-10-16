@@ -8,10 +8,6 @@ const SUPABASE_URL = "https://xatgzoturyuygtgukegt.supabase.co";
 const SUPABASE_KEY = "sb_publishable_k6u5Nka26BQpQOP4R1H6Zw_lJ4PBUpT";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* OneMap: never put your email/password in front-end code.
-   Point tokenUrl at a small backend endpoint that logs in to OneMap with
-   credentials kept in environment variables and returns { "token": "..." }.
-   For quick local testing only, you may paste a short-lived token into devToken. */
 const ONEMAP_CONFIG = {
   tokenUrl: "https://xatgzoturyuygtgukegt.supabase.co/functions/v1/onemap-token",
   devToken: ""
@@ -38,7 +34,7 @@ async function searchOneMap(query, retry = true) {
   const endpoint = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(query)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`;
   try {
     const res = await fetch(endpoint, { headers: { Authorization: token } });
-    if (res.status === 401 && retry) {          // token expired: refresh once
+    if (res.status === 401 && retry) {
       await getOneMapToken(true);
       return searchOneMap(query, false);
     }
@@ -51,46 +47,89 @@ async function searchOneMap(query, retry = true) {
 }
 
 /* ==========================================================================
-   2. APP STATE & DATA
+   2. APP STATE & SAFETY NET DATA (CSV Pits Fallback)
    ========================================================================== */
 
 const PRICE = '$20/pit · 2hrs';
 const FAC_ICON = { Toilets: 'pin', Water: 'drop', Lights: 'bulb', Parking: 'compass' };
 
+// Instant safety net dataset so the map and list never get stuck loading
 let PITS = {
-  D: { id:'D', area:'Area D', rating:4.6, reviews:24, access:'Stair-free access', accessLong:'Stair-free approach. Confirm access and path conditions with the managing agency.', fac:['Toilets','Water','Lights'], photo:'d', coords: [1.3000, 103.9110] },
-  A: { id:'A', area:'Area A', rating:4.4, reviews:18, access:'Paved access', accessLong:'Paved approach. Confirm route conditions before travelling.', fac:['Toilets','Water','Lights'], photo:'a', coords: [1.3030, 103.9050] },
-  C: { id:'C', area:'Area C', rating:4.6, reviews:24, access:'Paved access', accessLong:'Paved approach. Confirm route conditions before travelling.', fac:['Toilets','Parking'], photo:'c', coords: [1.3015, 103.9080] },
+  "A": { id: "A", area: "Pasir Ris-Changi", rating: 4.4, reviews: 56, access: "Access information unavailable", accessLong: "Accessibility details have not been verified. Contact the managing agency before visiting.", fac: ["Toilets", "Water"], photo: "default-bbq-pit", price: "$19/pit · 2hrs", coords: [1.381086, 103.957466] },
+  "B": { id: "B", area: "Mountbatten", rating: 4.6, reviews: 71, access: "Access information unavailable", accessLong: "Accessibility details have not been verified. Contact the managing agency before visiting.", fac: ["Water", "Lights"], photo: "default-bbq-pit", price: "$17/pit · 2hrs", coords: [1.298286, 103.907651] },
+  "C": { id: "C", area: "Marine Parade", rating: 4.8, reviews: 120, access: "Paved access", accessLong: "Paved approach.", fac: ["Toilets", "Water"], photo: "default-bbq-pit", price: "$20/pit · 2hrs", coords: [1.306348, 103.935754] },
+  "D": { id: "D", area: "Pasir Ris-Changi", rating: 4.2, reviews: 34, access: "Paved access", accessLong: "Paved approach.", fac: ["Toilets", "Water"], photo: "default-bbq-pit", price: "$22/pit · 2hrs", coords: [1.388407, 103.940455] },
+  "E": { id: "E", area: "South West", rating: 4.5, reviews: 45, access: "Stair-free access", accessLong: "Stair-free approach.", fac: ["Toilets", "Water", "Lights"], photo: "default-bbq-pit", price: "$18/pit · 2hrs", coords: [1.292417, 103.765278] }
 };
 
 const state = {
-  saved: new Set(['D', 'A']),
-  viewing: 'D',
-  comparing: ['D', 'A'],
-  baseline: 'D',
+  saved: new Set(['A']),
+  viewing: 'A',
+  comparing: ['A'],
+  baseline: 'A',
   listMode: 'list',
 };
 
 async function loadPits() {
   try {
-    const { data, error } = await supabase.from("pits").select("*");
-    if (!error && data && data.length > 0) {
-      PITS = data.reduce((acc, pit) => {
-        acc[pit.id] = {
-          id: pit.id,
-          area: pit.area,
-          rating: pit.rating,
-          reviews: pit.reviews,
-          access: pit.access,
-          accessLong: pit.access_long,
-          fac: pit.facilities || [],
-          photo: pit.photo_key || 'd',
-          coords: pit.coords || [1.3000, 103.9110]
+    // Limit to 200 rows for lightning-fast mobile performance and smooth map rendering
+    const { data, error } = await supabase
+      .from("pits")
+      .select("*")
+      .limit(200);
+
+    if (error) {
+      console.warn("Supabase query error. Using CSV safety net data.", error);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      const newPits = {};
+      data.forEach((pit, index) => {
+        const pitId = pit.id ? String(pit.id).trim() : `pit_${index + 1}`;
+        
+        let parsedFacilities = ['Toilets', 'Water'];
+        if (Array.isArray(pit.facilities)) {
+          parsedFacilities = pit.facilities;
+        } else if (typeof pit.facilities === 'string') {
+          parsedFacilities = pit.facilities
+            .replace(/^\{|\}$/g, '')
+            .split(',')
+            .map(f => f.trim().replace(/^"|"$/g, ''))
+            .filter(Boolean);
+        }
+        if (parsedFacilities.length === 0) parsedFacilities = ['Toilets', 'Water'];
+
+        const lat = parseFloat(pit.latitude);
+        const lng = parseFloat(pit.longitude);
+
+        newPits[pitId] = {
+          id: pitId,
+          area: pit.area || `Pit ${pitId}`,
+          rating: pit.rating || 4.5,
+          reviews: pit.reviews || 0,
+          access: pit.access || 'Paved access',
+          accessLong: pit.access_long || 'Paved approach.',
+          fac: parsedFacilities,
+          photo: pit.photo_key || 'default-bbq-pit',
+          price: pit.price || '$20/pit · 2hrs',
+          coords: [!isNaN(lat) ? lat : 1.3000, !isNaN(lng) ? lng : 103.9110]
         };
-        return acc;
-      }, {});
-      if (document.getElementById('view').dataset.route === 'explore') {
-        go('explore', { push: false });
+      });
+
+      PITS = newPits;
+      console.log(`Successfully loaded ${Object.keys(PITS).length} BBQ pits from Supabase (capped at 200).`);
+
+      const allIds = Object.keys(PITS);
+      if (allIds.length > 0) {
+        state.viewing = allIds[0];
+        state.baseline = allIds[0];
+      }
+
+      // Refresh current screen if active
+      const currentRoute = document.getElementById('view')?.dataset?.route;
+      if (currentRoute === 'explore' || currentRoute === 'map') {
+        go(currentRoute, { push: false });
       }
     }
   } catch (err) {
@@ -115,13 +154,13 @@ function pitCard(id, { cta = true, label = '' } = {}) {
   return `
   <article class="card pit">
     <div class="pit-main">
-      <div class="photo photo-${p.photo}" role="img" aria-label="Photo of ${p.area}"></div>
+      <div class="photo photo-${p.photo === 'default-bbq-pit' ? 'd' : p.photo}" role="img" aria-label="Photo of ${p.area}"></div>
       <div>
         <span class="tag">Public Sector</span>
-        <h3>East Coast Park ${p.area}</h3>
+        <h3>${p.area}</h3>
         <p class="rating">★ ${p.rating} (${p.reviews} demo reviews)</p>
-        <p class="meta"><span>${icon('pin')} East Coast Park, ${p.area}</span><span>${icon('compass')} Nearest MRT: confirm route</span></p>
-        <p class="price">${PRICE}</p>
+        <p class="meta"><span>${icon('pin')} ${p.area}, Singapore</span><span>${icon('compass')} Nearest MRT: confirm route</span></p>
+        <p class="price">${p.price || PRICE}</p>
       </div>
       ${saveBtn(id)}
     </div>
@@ -143,7 +182,7 @@ const exploreHeader = () => `
     <button class="field">${icon('users')}<span>Number of guests</span></button>
   </div>
   <div class="row between">
-    <span class="row" style="font-weight:600;font-size:.9rem">${icon('compass')}East Coast Park</span>
+    <span class="row" style="font-weight:600;font-size:.9rem">${icon('compass')}Singapore Parks (${Object.keys(PITS).length} Pits)</span>
     <div class="toggle" role="group" aria-label="View mode">
       <button data-mode="map" aria-pressed="${state.listMode === 'map'}">${icon('pin')}Map</button>
       <button data-mode="list" aria-pressed="${state.listMode === 'list'}">${icon('search')}List</button>
@@ -172,73 +211,80 @@ const screens = {
     </section>`,
 
   explore: () => state.listMode === 'map'
-    ? `${exploreHeader('map')}
-       <div id="onemap-leaflet-container" class="map" role="region" aria-label="Map of East Coast Park"></div>`
-    : `${exploreHeader('list')}
-       ${Object.keys(PITS).map(id => pitCard(id)).join('')}
+    ? `${exploreHeader()}
+       <div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits"></div>`
+    : `${exploreHeader()}
+       ${Object.keys(PITS).slice(0, 5).map(id => pitCard(id)).join('')}
        ${notice('Confirm facilities, availability and final prices on the official site.')}`,
 
   map: () => `
-    ${exploreHeader('map')}
-    <section class="map" aria-label="Illustrative map of East Coast Park">
-      <div class="pills"><span class="pill">${icon('flame')}BBQ pits ✓</span><span class="pill">${icon('pin')}Facilities ✓</span></div>
-      <div class="pins">
-        <button class="pin" data-pit="A"><span class="drop">${icon('flame')}</span>Area A<br>120m<br>2min walk</button>
-        <span class="you" role="img" aria-label="Your location"></span>
-        <button class="pin" data-pit="D"><span class="drop">${icon('flame')}</span>Area D<br>85m<br>1min walk</button>
-      </div>
-      <p class="muted">Illustrative map · sample walking estimates</p>
-    </section>`,
+    ${exploreHeader()}
+    <div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits"></div>`,
 
   pit: () => {
-    const p = PITS[state.viewing] || PITS['D'];
+    const p = PITS[state.viewing] || Object.values(PITS)[0];
     return `
     <div class="top"><button data-back>‹ Back</button><button class="btn sm" data-go="search">${icon('swap')}Compare Pit</button></div>
-    <header><h1>East Coast Park</h1><p class="sub">${p.area} · Public-sector BBQ pit</p></header>
-    <div class="photo photo-${p.photo} hero">${saveBtn(p.id)}<span class="badge">1 / 3 · illustrative</span></div>
+    <header><h1>${p.area}</h1><p class="sub">Public-sector BBQ pit</p></header>
+    <div class="photo photo-d hero">${saveBtn(p.id)}<span class="badge">1 / 3 · illustrative</span></div>
     <div class="gallery">${['d','a','c'].map(k => `<div class="photo photo-${k}"></div>`).join('')}</div>
     <div class="row between" style="align-items:flex-start">
       <p><span class="rating" style="font-size:1.1rem">★ ${p.rating}</span><br><span class="muted">${p.reviews} demo reviews</span></p>
-      <p style="text-align:right"><strong style="font-size:1.1rem">${PRICE}</strong><br><span class="muted">Sample price</span></p>
+      <p style="text-align:right"><strong style="font-size:1.1rem">${p.price || PRICE}</strong><br><span class="muted">Sample price</span></p>
     </div>
+
+    <!-- LIVE WEATHER WIDGET -->
+    <section class="card stack">
+      <h2>Live Weather Forecast</h2>
+      <div id="weather-text" class="sub">🔄 Loading weather...</div>
+    </section>
+
+    <!-- LIVE CARPARK WIDGET -->
+    <section class="card stack">
+      <h2>Nearby Carpark Availability</h2>
+      <div id="carpark-text" class="sub">🔄 Loading carpark availability...</div>
+    </section>
+
     ${notice('Demo listing and illustrative photos.')}
     <section class="stack"><h2>Plan your visit</h2>
       <ul class="facts">
         <li class="fact"><i>${icon('compass')}</i><span><small>Organisation</small>Managing agency: confirmation pending</span></li>
         <li class="fact"><i>${icon('clock')}</i><span><small>Operating times</small>Not confirmed. Check official booking times.</span></li>
-        <li class="fact"><i>${icon('pin')}</i><span><small>Address</small>East Coast Park, ${p.area}, Singapore.</span></li>
+        <li class="fact"><i>${icon('pin')}</i><span><small>Address</small>${p.area}, Singapore.</span></li>
         <li class="fact"><i>${icon('access')}</i><span><small>Accessibility</small>${p.accessLong}</span></li>
       </ul>
     </section>
     <section class="stack"><div class="row between"><h2>Facilities</h2><span class="link">Attributes</span></div>
-      <div class="fac-grid">${p.fac.map(f => `<div>${icon(FAC_ICON[f] || 'pin')}${f}</div>`).join('')}</div>
+      <div class="fac-grid">${p.fac.map(f => `<div>${icon(FAC_ICON[f] \vert{}\vert{} 'pin')}${f}</div>`).join('')}</div>
     </section>
     <a class="btn" href="#pit" onclick="return false">Book now ${icon('out')}</a>`;
   },
 
   search: () => {
-    const base = PITS[state.baseline] || PITS['D'];
+    const base = PITS[state.baseline] || Object.values(PITS)[0];
     const others = Object.keys(PITS).filter(id => id !== state.baseline);
     return `
     ${eyebrow('Recently Seen')}
     <h1>Search and compare</h1>
     ${searchBar()}
-    <div class="card comparing"><div class="photo photo-${base.photo}"></div>
-      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>East Coast Park · ${base.area}</strong><br><span class="muted">${PRICE}</span></p>
+    <div class="card comparing"><div class="photo photo-d"></div>
+      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base.area}</strong><br><span class="muted">${PRICE}</span></p>
       <span class="accent">${icon('target')}</span></div>
-    <div class="chips"><span class="chip">East Coast Park</span><span class="chip">Toilets</span><span class="chip">Step-free</span></div>
+    <div class="chips"><span class="chip">East Coast</span><span class="chip">Toilets</span><span class="chip">Step-free</span></div>
     <div class="row between"><h2>Recently Seen</h2><span class="link">${others.length} other pits</span></div>
     ${others.slice(0, 1).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}`;
   },
 
   compare: () => {
-    const [a, b] = state.comparing.map(id => PITS[id] || PITS['D']);
+    const keys = Object.keys(PITS);
+    const a = PITS[state.comparing[0]] || PITS[keys[0]];
+    const b = PITS[state.comparing[1]] || PITS[keys[1] || keys[0]];
     return `
     <div class="top"><button data-back>‹ Back</button><button class="go-btn" data-go="search">Change pit</button></div>
     <header><h1>Which fire fits?</h1><p class="sub">Two spots. One easier decision.</p></header>
-    <div class="duo">${[a, b].map(p => `<div><div class="photo photo-${p.photo}"></div>
-      <span class="muted accent" style="font-size:.7rem">East Coast Park</span><h2 style="font-size:1.2rem">${p.area}</h2>
-      <span class="rating">★ ${p.rating} · ${p.reviews} demo reviews</span><strong>${PRICE}</strong></div>`).join('')}</div>
+    <div class="duo">${[a, b].map(p => `<div><div class="photo photo-d"></div>
+      <h2 style="font-size:1.2rem">${p.area}</h2>
+      <span class="rating">★ ${p.rating} · ${p.reviews} reviews</span><strong>${PRICE}</strong></div>`).join('')}</div>
     <div class="duo"><button class="btn" data-pit="${a.id}">View ${a.area}</button><button class="btn" data-pit="${b.id}">View ${b.area}</button></div>`;
   },
 
@@ -267,7 +313,7 @@ const historyStack = [];
 let leafletMapInstance = null;
 
 function initLeafletMap() {
-  const container = document.getElementById('onemap-leaflet-container');
+  const container = document.getElementById('onemap');
   if (!container || typeof L === 'undefined') return;
 
   if (leafletMapInstance) {
@@ -275,28 +321,46 @@ function initLeafletMap() {
     leafletMapInstance = null;
   }
 
-  // Centre map on East Coast Park
-  leafletMapInstance = L.map(container).setView([1.3000, 103.9100], 14);
+  leafletMapInstance = L.map(container, { zoomControl: false }).setView([1.3521, 103.8198], 11);
+  L.control.zoom({ position: 'bottomright' }).addTo(leafletMapInstance);
 
   L.tileLayer("https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png", {
     detectRetina: true,
-    minZoom: 11,
+    minZoom: 9,
     maxZoom: 19,
-    attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>&nbsp;&copy;&nbsp;contributors&nbsp;&#124;&nbsp;<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener">Singapore Land Authority</a>'
+    attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>'
   }).addTo(leafletMapInstance);
 
-  // Add markers for each pit
-  Object.values(PITS).forEach(pit => {
-    const marker = L.marker(pit.coords).addTo(leafletMapInstance);
-    marker.bindPopup(`<b>East Coast Park ${pit.area}</b><br>${pit.access}<br><button class="link" onclick="window.viewPitFromMap('${pit.id}')">View Details →</button>`);
+  const bounds = [];
+  const pitValues = Object.values(PITS);
+  console.log(`Plotting ${pitValues.length} BBQ pits onto the Leaflet map.`);
+
+  pitValues.forEach(pit => {
+    if (!pit.coords || pit.coords.length !== 2) return;
+    const latLng = [pit.coords[0], pit.coords[1]];
+    bounds.push(latLng);
+
+    const marker = L.circleMarker(latLng, {
+      radius: 6,
+      fillColor: '#ff6a1a',
+      color: '#ffffff',
+      weight: 1.5,
+      opacity: 1,
+      fillOpacity: 0.9
+    }).addTo(leafletMapInstance);
+
+    marker.bindPopup(`<strong>${pit.area}</strong><br>${pit.access}<br><button class="link" onclick="window.viewPitFromMap('${pit.id}')">View Details →</button>`);
   });
+
+  if (bounds.length > 0) {
+    leafletMapInstance.fitBounds(bounds, { padding: [30, 30] });
+  }
 
   setTimeout(() => {
     leafletMapInstance.invalidateSize();
   }, 200);
 }
 
-// Global hook for popup button click
 window.viewPitFromMap = (pitId) => {
   state.viewing = pitId;
   go('pit');
@@ -321,8 +385,13 @@ function go(route, { push = true } = {}) {
   view.dataset.route = route;
   attachSearchListener();
 
-  if (route === 'explore' && state.listMode === 'map') {
+  if ((route === 'explore' && state.listMode === 'map') || route === 'map') {
     requestAnimationFrame(initLeafletMap);
+  }
+
+  if (route === 'pit') {
+    loadPitWeather();
+    loadPitCarparks();
   }
 }
 
@@ -332,7 +401,7 @@ function back() {
 }
 
 /* ==========================================================================
-   5. EVENT LISTENERS & INITIALIZATION
+   5. EVENT LISTENERS & LIVE PUBLIC DATA APIs
    ========================================================================== */
 
 function attachSearchListener() {
@@ -368,9 +437,6 @@ function attachSearchListener() {
     }, 400);
   });
 }
-/* ==========================================================================
-   LIVE PUBLIC DATA INTEGRATION (Data.gov.sg APIs)
-   ========================================================================== */
 
 async function fetchWeatherForecast() {
   try {
@@ -431,6 +497,7 @@ async function loadPitCarparks() {
     carparkText.textContent = "Live carpark data currently unavailable.";
   }
 }
+
 document.addEventListener('click', e => {
   const modeBtn = e.target.closest('[data-mode]');
   if (modeBtn) {
@@ -460,5 +527,19 @@ document.addEventListener('click', e => {
   }
 });
 
+/* ==========================================================================
+   6. REALTIME SUBSCRIPTION & INITIALIZATION
+   ========================================================================== */
+
+// Enable Supabase Realtime live updates
+supabase
+  .channel('public:pits')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'pits' }, payload => {
+    console.log('Realtime DB change received:', payload);
+    loadPits();
+  })
+  .subscribe();
+
+// Initialize app immediately with safety net, then sync Supabase
 loadPits();
 go('login');

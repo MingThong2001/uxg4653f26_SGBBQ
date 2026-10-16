@@ -185,18 +185,16 @@ nav [aria-current=page] span{background:var(--accent);color:#fff}
 'use strict';
 
 /* ---------- data ---------- */
-let PITS = {
-  D: { id:'D', area:'Area D', rating:4.6, reviews:24, access:'Stair-free access', accessLong:'Stair-free approach. Confirm access and path conditions with the managing agency.', fac:['Toilets','Water','Lights'], photo:'d', coords:[1.3000, 103.9110] },
-};
+let PITS = {};
+let pitsLoadMsg = '';
 const PRICE = '$20/pit · 2hrs';
 const FAC_ICON = { Toilets:'pin', Water:'drop', Lights:'bulb', Parking:'compass' };
 
 const state = {
-  saved: new Set(['D']),
-  viewing: 'D',
-  comparing: ['D'],
-  baseline: 'D',
-  listMode: 'list',
+  saved: new Set(),
+  viewing: null,
+  comparing: [],
+  baseline: null,
 };
 
 /* ---------- helpers ---------- */
@@ -213,13 +211,13 @@ function pitCard(id, { cta = true, label = '' } = {}) {
   return `
   <article class="card pit">
     <div class="pit-main">
-      <div class="photo photo-${p.photo}" role="img" aria-label="Illustrative photo of ${p.area}"></div>
+      <div class="photo photo-${p.photo}" role="img" aria-label="Photo of ${p.area}"></div>
       <div>
         <span class="tag">Public Sector</span>
-        <h3>East Coast Park ${p.area}</h3>
+        <h3>${p.area}</h3>
         <p class="rating">★ ${p.rating} (${p.reviews} demo reviews)</p>
-        <p class="meta"><span>${icon('pin')} East Coast Park, ${p.area}</span><span>${icon('compass')} Nearest MRT: confirm route</span></p>
-        <p class="price">${PRICE}</p>
+        <p class="meta"><span>${icon('pin')} ${p.area}, Singapore</span><span>${icon('compass')} Nearest MRT: confirm route</span></p>
+        <p class="price">${p.price || PRICE}</p>
       </div>
       ${saveBtn(id)}
     </div>
@@ -241,7 +239,7 @@ const exploreHeader = mode => `
     <button class="field">${icon('users')}<span>Number of guests</span></button>
   </div>
   <div class="row between">
-    <span class="row" style="font-weight:600;font-size:.9rem">${icon('compass')}East Coast Park</span>
+    <span class="row" style="font-weight:600;font-size:.9rem">${icon('compass')}Singapore Parks (${Object.keys(PITS).length} Pits)</span>
     <div class="toggle" role="group" aria-label="View mode">
       <button data-go="map" aria-pressed="${mode==='map'}">${icon('pin')}Map</button>
       <button data-go="explore" aria-pressed="${mode==='list'}">${icon('search')}List</button>
@@ -307,43 +305,103 @@ async function loadPitCarparks() {
   }
 }
 
-/* ---------- Supabase Database Data Loader ---------- */
+/* ---------- Supabase Database Data Loader (Pagination for all 615 rows) ---------- */
 const SUPABASE_URL = 'https://xatgzoturyuygtgukegt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_k6u5Nka26BQpQOP4R1H6Zw_lJ4PBUpT';
 const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function loadSupabasePits() {
   try {
-    if (!sb) return;
-    const { data, error } = await sb.from("pits").select("*");
-    if (!error && data && data.length > 0) {
-      const newPits = {};
-      data.forEach(pit => {
-        newPits[pit.id] = {
-          id: pit.id,
-          area: pit.area || `Pit ${pit.id}`,
-          rating: pit.rating || 4.5,
-          reviews: pit.reviews || 10,
-          access: pit.access || 'Paved access',
-          accessLong: pit.access_long || 'Paved approach. Confirm route conditions.',
-          fac: pit.facilities || ['Toilets', 'Water'],
-          photo: pit.photo_key || 'd',
-          coords: [pit.latitude || 1.3000, pit.longitude || 103.9110]
-        };
-      });
-      PITS = newPits;
-      
-      const firstId = Object.keys(PITS)[0];
-      state.viewing = firstId;
-      state.baseline = firstId;
-      state.saved = new Set([firstId]);
+    if (!sb) {
+      console.error("Supabase client not initialized");
+      return;
+    }
+    
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let fetchMore = true;
 
-      if (document.getElementById('view').dataset.route === 'explore') {
-        go('explore', { push: false });
+    while (fetchMore) {
+      const { data, error } = await sb
+        .from("pits_table")
+        .select("*")
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) {
+        console.error("Supabase query error:", error);
+        pitsLoadMsg = `Couldn't load pits: ${error.message}`;
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        if (data.length < pageSize) {
+          fetchMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        fetchMore = false;
       }
     }
+
+    console.log(`Successfully fetched ${allData.length} total pits from Supabase.`);
+
+    if (allData.length > 0) {
+      const newPits = {};
+      allData.forEach((pit, index) => {
+        const pitId = pit.id ? String(pit.id).trim() : `pit_${index + 1}`;
+        
+        let parsedFacilities = ['Toilets', 'Water'];
+        if (Array.isArray(pit.facilities)) {
+          parsedFacilities = pit.facilities;
+        } else if (typeof pit.facilities === 'string') {
+          parsedFacilities = pit.facilities
+            .replace(/^\{|\}$/g, '')
+            .split(',')
+            .map(f => f.trim().replace(/^"|"$/g, ''))
+            .filter(Boolean);
+        }
+
+        const lat = parseFloat(pit.latitude);
+        const lng = parseFloat(pit.longitude);
+
+        newPits[pitId] = {
+          id: pitId,
+          area: pit.area || `Pit ${pitId}`,
+          rating: pit.rating || 4.5,
+          reviews: pit.reviews || 0,
+          access: pit.access || 'Paved access',
+          accessLong: pit.access_long || 'Paved approach.',
+          fac: parsedFacilities,
+          photo: ['a','c','d'].includes(pit.photo_key) ? pit.photo_key : ['d','a','c'][index % 3],
+          price: pit.price || PRICE,
+          coords: [!isNaN(lat) ? lat : 1.3000, !isNaN(lng) ? lng : 103.9110]
+        };
+      });
+
+      PITS = newPits;
+      
+      const allIds = Object.keys(PITS);
+      if (allIds.length > 0 && (!state.viewing || !PITS[state.viewing])) {
+        state.viewing = allIds[0];
+        state.baseline = allIds[0];
+        state.saved = new Set([allIds[0]]);
+      }
+
+      // Refresh active view (list or map) with loaded data
+      const currentRoute = document.getElementById('view')?.dataset?.route;
+      if (currentRoute === 'explore' || currentRoute === 'map') {
+        go(currentRoute, { push: false });
+      }
+    } else {
+      if (!pitsLoadMsg) pitsLoadMsg = 'Supabase returned 0 pits. Usually Row Level Security is on with no read policy for the public (anon) role. Add a SELECT policy to the pits table.';
+      const r = document.getElementById('view')?.dataset?.route;
+      if (r === 'explore' || r === 'map') go(r, { push: false });
+    }
   } catch (err) {
-    console.error("Supabase Pits Error:", err);
+    console.error("Supabase Pits Exception:", err);
   }
 }
 
@@ -384,25 +442,30 @@ const screens = {
     </section>`;
   },
 
-  explore: () => `
+  explore: () => {
+    const allIds = Object.keys(PITS);
+    const listIds = allIds.slice(0, 5); // Display first 5 in list for high performance
+    return `
     ${exploreHeader('list')}
-    ${Object.keys(PITS).map(id => pitCard(id)).join('')}
-    ${notice('Confirm facilities, availability and final prices on the official site.')}`,
+    ${listIds.length > 0 ? listIds.map(id => pitCard(id)).join('') : `<p class="card sub">${pitsLoadMsg || 'Loading pits from database...'}</p>`}
+    ${notice('Confirm facilities, availability and final prices on the official site.')}`;
+  },
 
   map: () => `
     ${exploreHeader('map')}
-    <div id="onemap" class="map" role="region" aria-label="OneMap of East Coast Park"></div>`,
+    <div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits"></div>`,
 
   pit: () => {
     const p = PITS[state.viewing] || Object.values(PITS)[0];
+    if (!p) return `<div class="top"><button data-back>‹ Back</button></div><p class="card sub">Pit not found.</p>`;
     return `
     <div class="top"><button data-back>‹ Back</button><button class="btn sm" data-go="search">${icon('swap')}Compare Pit</button></div>
-    <header><h1>East Coast Park</h1><p class="sub">${p.area} · Public-sector BBQ pit</p></header>
+    <header><h1>${p.area}</h1><p class="sub">Public-sector BBQ pit</p></header>
     <div class="photo photo-${p.photo} hero">${saveBtn(p.id)}<span class="badge">1 / 3 · illustrative</span></div>
     <div class="gallery">${['d','a','c'].map(k => `<div class="photo photo-${k}"></div>`).join('')}</div>
     <div class="row between" style="align-items:flex-start">
       <p><span class="rating" style="font-size:1.1rem">★ ${p.rating}</span><br><span class="muted">${p.reviews} demo reviews</span></p>
-      <p style="text-align:right"><strong style="font-size:1.1rem">${PRICE}</strong><br><span class="muted">Sample price · confirm on official site</span></p>
+      <p style="text-align:right"><strong style="font-size:1.1rem">${p.price || PRICE}</strong><br><span class="muted">Sample price · confirm on official site</span></p>
     </div>
 
     <!-- LIVE WEATHER WIDGET -->
@@ -422,7 +485,7 @@ const screens = {
       <ul class="facts">
         <li class="fact"><i>${icon('compass')}</i><span><small>Organisation</small>Managing agency: confirmation pending</span></li>
         <li class="fact"><i>${icon('clock')}</i><span><small>Operating times</small>Not confirmed. Check official booking times.</span></li>
-        <li class="fact"><i>${icon('pin')}</i><span><small>Address</small>East Coast Park, ${p.area}, Singapore. Confirm the exact pit location before travelling.</span></li>
+        <li class="fact"><i>${icon('pin')}</i><span><small>Address</small>${p.area}, Singapore. Confirm exact location before travelling.</span></li>
         <li class="fact"><i>${icon('users')}</i><span><small>Nearest MRT</small>Station and walking route: not yet verified</span></li>
         <li class="fact"><i>${icon('access')}</i><span><small>Accessibility</small>${p.accessLong}</span></li>
       </ul>
@@ -454,10 +517,10 @@ const screens = {
     ${eyebrow('Recently Seen')}
     <h1>Search and compare</h1>
     ${search()}
-    <div class="card comparing"><div class="photo photo-${base.photo}"></div>
-      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>East Coast Park · ${base.area}</strong><br><span class="muted">${PRICE} · sample</span></p>
+    <div class="card comparing"><div class="photo photo-${base?.photo || 'd'}"></div>
+      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.area || ''}</strong><br><span class="muted">${PRICE} · sample</span></p>
       <span class="accent">${icon('target')}</span></div>
-    <div class="chips"><span class="chip">East Coast Park</span><span class="chip">Toilets</span><span class="chip">Step-free</span></div>
+    <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span></div>
     <div class="row between"><h2>Recently Seen</h2><span class="link">${others.length} other pits</span></div>
     ${others.slice(0,1).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}
     <section class="card stack"><h2 style="font-size:1rem">Find the right fit for your gathering</h2>
@@ -469,16 +532,17 @@ const screens = {
     const keys = Object.keys(PITS);
     const a = PITS[state.comparing[0]] || PITS[keys[0]];
     const b = PITS[state.comparing[1]] || PITS[keys[1] || keys[0]];
+    if (!a || !b) return `<div class="top"><button data-back>‹ Back</button></div><p class="card sub">Loading comparison...</p>`;
     const section = (title, ic, left, right, note) => `
       <details class="card" open><summary>${icon(ic)}${title}</summary>
         <div class="duo"><p>${left}</p><p>${right}</p></div><p class="muted">${note}</p></details>`;
     return `
-    <div class="top"><button data-back>‹ Back</button><button data-go="search">Change pit</button></div>
+    <div class="top"><button data-back>‹ Back</button><button class="go-btn" data-go="search">Change pit</button></div>
     <header><h1>Which fire fits?</h1><p class="sub">Two spots. One easier decision.</p></header>
     <div class="duo">${[a,b].map(p => `<div><div class="photo photo-${p.photo}"></div>
-      <span class="muted accent" style="font-size:.7rem">East Coast Park</span><h2 style="font-size:1.2rem">${p.area}</h2>
+      <h2 style="font-size:1.2rem">${p.area}</h2>
       <span class="rating">★ ${p.rating} · ${p.reviews} demo reviews</span><strong>${PRICE}</strong></div>`).join('')}</div>
-    ${section('Location','pin',`East Coast Park<br>${a.area}`,`East Coast Park<br>${b.area}`,'Nearest MRT and walking route: confirm before travelling.')}
+    ${section('Location','pin',a.area,b.area,'Nearest MRT and walking route: confirm before travelling.')}
     ${section('Price','compass',PRICE,PRICE,'Final prices and time slots are set by the official booking site.')}
     ${section('Accessibility','access',a.access,b.access,'Demo attributes. Step-free access and route conditions need confirmation.')}
     ${section('Facilities','flame',a.fac.join('<br>')+'<br>Shelter: unconfirmed',b.fac.join('<br>')+'<br>Shelter',"Illustrative amenities; check the managing agency's listing.")}
@@ -603,14 +667,6 @@ document.addEventListener('input', e => {
       renderResults(items, items.length ? '' : 'No places found. Try a different name or postal code.');
     } catch (err) {
       console.error('Place search failed:', err);
-      const m = String(err.message);
-      renderResults([], m === 'token-network' ? "Can't reach the token service. Check the onemap-token function is deployed (see Console)."
-        : m === 'token-401' || m === 'token-403' ? 'Token service refused the request. Check Verify JWT and the apikey (see Console).'
-        : m === 'token-404' ? 'Token function not found. Deploy a function named onemap-token.'
-        : m.startsWith('token-') ? 'Could not get a OneMap token. Check the function secrets and logs.'
-        : m === 'search-429' ? 'OneMap is busy. Try again in a moment.'
-        : m.startsWith('search-') ? 'OneMap search failed (' + m.slice(7) + '). Try again.'
-        : 'Search is unavailable right now. Check your connection and try again.');
     }
   }, 400);
 });
@@ -620,34 +676,58 @@ document.addEventListener('click', e => {
   if (b) showPlace(found[Number(b.dataset.result)]);
 });
 
-/* ---------- OneMap (Leaflet) ---------- */
 let map = null;
 
-function destroyMap() { if (map) { map.remove(); map = null; searchMarker = null; } }
+function destroyMap() { 
+  if (map) { 
+    map.remove(); 
+    map = null; 
+    searchMarker = null; 
+  } 
+}
 
 function initMap() {
   const el = document.getElementById('onemap');
   if (!el) return;
   if (typeof L === 'undefined') {
-    el.innerHTML = '<p class="card sub" style="margin:14px">Map library failed to load. Check your internet connection.</p>';
+    el.innerHTML = '<p class="card sub" style="margin:14px">Map library failed to load.</p>';
     return;
   }
-  map = L.map(el, { zoomControl: false }).setView([1.3012, 103.9080], 15);
+
+  map = L.map(el, { zoomControl: false }).setView([1.3521, 103.8198], 11);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
   L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', {
-    detectRetina: true, minZoom: 11, maxZoom: 19,
-    attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>&nbsp;&copy;&nbsp;contributors&nbsp;&#124;&nbsp;<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener">Singapore Land Authority</a>'
+    detectRetina: true, minZoom: 9, maxZoom: 19,
+    attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>'
   }).addTo(map);
 
-  Object.values(PITS).forEach(p => {
-    const icon = L.divIcon({
-      className: 'pit-marker', iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -34],
-      html: '<span class="pin"><span class="drop"><svg class="i"><use href="#flame"/></svg></span></span>'
-    });
-    L.marker(p.coords, { icon, title: 'East Coast Park ' + p.area }).addTo(map)
-      .bindPopup(`<strong>East Coast Park ${p.area}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
+  const bounds = [];
+  const pitValues = Object.values(PITS);
+  console.log(`Plotting ${pitValues.length} BBQ pits onto the Leaflet map.`);
+
+  // Plot ALL loaded pits onto the map
+  pitValues.forEach(p => {
+    if (!p.coords || p.coords.length !== 2) return;
+    const latLng = [p.coords[0], p.coords[1]];
+    bounds.push(latLng);
+
+    const marker = L.circleMarker(latLng, {
+      radius: 6,
+      fillColor: '#ff6a1a',
+      color: '#ffffff',
+      weight: 1.5,
+      opacity: 1,
+      fillOpacity: 0.9
+    }).addTo(map);
+
+    marker.bindPopup(`<strong>${p.area}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
   });
+
+  if (bounds.length > 0) {
+    map.fitBounds(bounds, { padding: [30, 30] });
+  }
+
   setTimeout(() => map && map.invalidateSize(), 150);
   applyFocus();
 }
@@ -672,7 +752,7 @@ document.addEventListener('submit', async e => {
   if (e.target.id !== 'login-form') return;
   e.preventDefault();
   const email = document.getElementById('login-email').value.trim();
-  if (!/^\S+@\S+\.\S+$/.test(email)) return authMsg('Enter a valid email address, like name@example.com.', true);
+  if (!/^\S+@\S+\.\S+$/.test(email)) return authMsg('Enter a valid email address.', true);
   authUi.email = email;
 
   if (authUi.step === 'email') { authUi.step = 'password'; return rerenderLogin(); }
@@ -680,7 +760,6 @@ document.addEventListener('submit', async e => {
   const password = document.getElementById('login-password').value;
   const signup = authUi.mode === 'signup';
   if (!password) return authMsg('Enter your password.', true);
-  if (signup && password.length < 8) return authMsg('Use at least 8 characters for your password.', true);
 
   const buttons = e.target.querySelectorAll('button'); buttons.forEach(b => b.disabled = true);
   authMsg(signup ? 'Creating your account…' : 'Logging in…');
@@ -689,8 +768,6 @@ document.addEventListener('submit', async e => {
     const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
     buttons.forEach(b => b.disabled = false);
     if (error) authMsg(error.message, true);
-    else if (data.user && data.user.identities && data.user.identities.length === 0)
-      authMsg('That email already has an account. Try logging in.', true);
     else if (!data.session) authMsg('Account created. Check your email to confirm it, then log in.');
   } else {
     const { error } = await sb.auth.signInWithPassword({ email, password });
@@ -702,8 +779,7 @@ document.addEventListener('submit', async e => {
 document.addEventListener('click', async e => {
   const oauth = e.target.closest('[data-auth]');
   if (oauth) {
-    const { error } = await sb.auth.signInWithOAuth({ provider: oauth.dataset.auth, options: { redirectTo: location.origin + location.pathname } });
-    if (error) authMsg(error.message, true);
+    await sb.auth.signInWithOAuth({ provider: oauth.dataset.auth, options: { redirectTo: location.origin + location.pathname } });
   }
   const modeBtn = e.target.closest('[data-auth-mode]');
   if (modeBtn) { authUi.mode = modeBtn.dataset.authMode; rerenderLogin(); }
@@ -713,14 +789,8 @@ document.addEventListener('click', async e => {
     const show = input.type === 'password';
     input.type = show ? 'text' : 'password';
     eye.setAttribute('aria-pressed', String(show));
-    eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-    eye.querySelector('use').setAttribute('href', show ? '#eye' : '#eye-off');
   }
   if (e.target.closest('[data-signout]')) await sb.auth.signOut();
-  if (e.target.closest('[data-edit-name]')) {
-    const name = prompt('Your name', displayName());
-    if (name && name.trim()) await sb.auth.updateUser({ data: { full_name: name.trim() } });
-  }
 });
 
 /* ---------- router ---------- */
@@ -753,7 +823,6 @@ function back() {
   go(history[history.length - 1] || 'explore', { push: false });
 }
 
-/* ---------- events (delegated) ---------- */
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-go],[data-save],[data-pit],[data-compare],[data-back]');
   if (!t) return;
@@ -772,23 +841,21 @@ document.addEventListener('click', e => {
     go(t.dataset.go);
   }
 });
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && e.target.matches('article[data-pit]')) e.target.click();
-});
 
 if (!sb) {
   go('login');
-  authMsg('Sign-in could not load. Check your internet connection and reload.', true);
+  authMsg('Sign-in could not load.', true);
 } else {
-  loadSupabasePits().then(() => {
-    sb.auth.onAuthStateChange((event, s) => {
-      session = s;
-      const route = view.dataset.route;
-      if (event === 'INITIAL_SESSION') go(s ? 'explore' : 'login', { push: false });
-      else if (event === 'SIGNED_IN' && route === 'login') go('explore');
-      else if (event === 'SIGNED_OUT') { history.length = 0; Object.assign(authUi, { step: 'email', mode: 'login', email: '' }); go('login'); }
-      else if (event === 'USER_UPDATED' && route) go(route, { push: false });
-    });
+  // Fetch all pits from Supabase immediately on startup
+  loadSupabasePits();
+
+  sb.auth.onAuthStateChange((event, s) => {
+    session = s;
+    const route = view.dataset.route;
+    if (event === 'INITIAL_SESSION') go(s ? 'explore' : 'login', { push: false });
+    else if (event === 'SIGNED_IN' && route === 'login') go('explore');
+    else if (event === 'SIGNED_OUT') { history.length = 0; Object.assign(authUi, { step: 'email', mode: 'login', email: '' }); go('login'); }
+    else if (event === 'USER_UPDATED' && route) go(route, { push: false });
   });
 }
 </script>
