@@ -134,6 +134,13 @@ details.card .muted{margin-top:10px}
 .auth-card .eyebrow{align-self:flex-start}
 .or{display:flex;align-items:center;gap:12px;font-size:.85rem}
 .or::before,.or::after{content:"";flex:1;height:1px;background:#6b5a50}
+.auth-form{display:flex;flex-direction:column;gap:14px;text-align:left}
+.auth-form .field{align-items:center}
+.auth-form input{font-size:1.05rem}
+.auth-form input::placeholder{color:var(--muted)}
+.eye{display:grid;place-items:center;color:var(--muted);padding:4px}
+.eye:hover,.eye[aria-pressed=true]{color:var(--text)}
+.linkbtn{color:var(--accent);font-weight:600;padding:0;display:inline}
 .go-btn{width:34px;height:34px;border-radius:50%;background:#5a2a14;display:grid;place-items:center;color:#fff}
 .social{justify-content:center;gap:12px;font-size:1.05rem}
 
@@ -145,7 +152,23 @@ nav [aria-current=page]{color:var(--accent)}
 nav [aria-current=page] span{background:var(--accent);color:#fff}
 nav [aria-current=page]{color:var(--accent)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* OneMap (Leaflet) */
+#onemap.map{display:block;flex:1;min-height:340px;padding:0;background:#0a1230;border-radius:var(--radius);overflow:hidden}
+.leaflet-container{font:inherit}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#1c1512;color:var(--text)}
+.leaflet-popup-content-wrapper{border:1px solid var(--line)}
+.leaflet-popup-content .link{cursor:pointer}
+.pit-marker{background:none;border:0}
+.results{margin-top:-8px;border:1px solid var(--line);border-radius:14px;background:#14100e;overflow:hidden}
+.results button{display:block;width:100%;padding:12px 14px;border-top:1px solid var(--line-soft);font-size:.85rem}
+.results button:first-child{border-top:0}
+.results button:hover,.results button:focus-visible{background:#2a1409}
+.results small{display:block;color:var(--muted);font-size:.72rem}
+.results .msg{padding:12px 14px;color:var(--muted);font-size:.82rem}
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -168,6 +191,8 @@ nav [aria-current=page]{color:var(--accent)}
   <symbol id="out" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/></symbol>
   <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6z"/></symbol>
   <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
+  <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 4M6.4 7.4C3.8 9.2 2 12 2 12s4 7 10 7c1.6 0 3-.4 4.3-1M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
 </svg>
 
 <div class="app" id="app">
@@ -184,9 +209,9 @@ nav [aria-current=page]{color:var(--accent)}
 
 /* ---------- data ---------- */
 const PITS = {
-  D: { id:'D', area:'Area D', rating:4.6, reviews:24, access:'Stair-free access', accessLong:'Stair-free approach. Confirm access and path conditions with the managing agency.', fac:['Toilets','Water','Lights'], photo:'d' },
-  A: { id:'A', area:'Area A', rating:4.4, reviews:18, access:'Paved access',      accessLong:'Paved approach. Confirm route conditions before travelling.',                  fac:['Toilets','Water','Lights'], photo:'a' },
-  C: { id:'C', area:'Area C', rating:4.6, reviews:24, access:'Paved access',      accessLong:'Paved approach. Confirm route conditions before travelling.',                  fac:['Toilets','Parking'],       photo:'c' },
+  D: { id:'D', area:'Area D', rating:4.6, reviews:24, access:'Stair-free access', accessLong:'Stair-free approach. Confirm access and path conditions with the managing agency.', fac:['Toilets','Water','Lights'], photo:'d', coords:[1.3000, 103.9110] },
+  A: { id:'A', area:'Area A', rating:4.4, reviews:18, access:'Paved access',      accessLong:'Paved approach. Confirm route conditions before travelling.',                  fac:['Toilets','Water','Lights'], photo:'a', coords:[1.3030, 103.9050] },
+  C: { id:'C', area:'Area C', rating:4.6, reviews:24, access:'Paved access',      accessLong:'Paved approach. Confirm route conditions before travelling.',                  fac:['Toilets','Parking'],       photo:'c', coords:[1.3015, 103.9080] },
 };
 const PRICE = '$20/pit · 2hrs';
 const FAC_ICON = { Toilets:'pin', Water:'drop', Lights:'bulb', Parking:'compass' };
@@ -233,7 +258,8 @@ function pitCard(id, { cta = true, label = '' } = {}) {
 const exploreHeader = mode => `
   ${eyebrow('BBQ PIT FINDER')}
   <h1>Find your fire.</h1>
-  ${search()}
+  ${search().replace('<input ','<input id="place-search" autocomplete="off" ')}
+  <ul class="results" id="results" aria-live="polite" hidden></ul>
   <div class="filters">
     <button class="field">${icon('cal')}<span>Date and time</span></button>
     <button class="field">${icon('users')}<span>Number of guests</span></button>
@@ -248,21 +274,40 @@ const exploreHeader = mode => `
 
 /* ---------- screens ---------- */
 const screens = {
-  login: () => `
+  login: () => {
+    const signup = authUi.mode === 'signup';
+    const askPassword = authUi.step === 'password';
+    const switchText = signup
+      ? 'Already have an account? <button type="button" class="linkbtn" data-auth-mode="login">Log in</button>'
+      : "Don't have an account? <button type=\"button\" class=\"linkbtn\" data-auth-mode=\"signup\">Sign up</button>";
+    return `
     <section class="card auth-card">
       ${eyebrow('BBQ PIT FINDER')}
-      <h1>Welcome Back!</h1>
-      <p class="sub">Sign in to your Account</p>
-      <label class="field" style="flex-direction:row;text-align:left">
-        <span style="flex:1"><small class="accent" style="display:block">Email</small>
-        <input type="email" placeholder="example@email.com" autocomplete="email"></span>
-        <button class="go-btn" data-go="explore" aria-label="Continue">${icon('chev')}</button>
-      </label>
+      <h1>${signup ? 'Create account' : 'Welcome Back!'}</h1>
+      <p class="sub">${signup ? 'Sign up to find your fire' : 'Sign in to your Account'}</p>
+      <form id="login-form" class="auth-form" novalidate>
+        <label class="field">
+          <span style="flex:1"><small class="accent" style="display:block">Email</small>
+          <input id="login-email" name="email" type="email" placeholder="example@email.com" autocomplete="email" value="${esc(authUi.email)}" required></span>
+          ${askPassword ? '' : `<button class="go-btn" type="submit" aria-label="Continue">${icon('chev')}</button>`}
+        </label>
+        ${askPassword ? `
+        <label class="field">
+          <span style="flex:1"><small class="accent" style="display:block">Password</small>
+          <input id="login-password" name="password" type="password" placeholder="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></span>
+          <button type="button" class="eye" data-toggle-pw aria-label="Show password" aria-pressed="false">${icon('eye-off')}</button>
+        </label>` : ''}
+        <p id="auth-msg" class="sub" role="status" aria-live="polite"></p>
+        ${askPassword ? `<p class="sub" style="text-align:center">${switchText}</p>
+        <button class="btn" type="submit">${signup ? 'Sign up' : 'Log In'}</button>` : ''}
+      </form>
+      ${askPassword ? '' : `
       <p class="or">OR</p>
-      <button class="field social" data-go="explore"><strong style="color:#4285f4">G</strong>Continue with Google</button>
-      <button class="field social" data-go="explore"><strong style="color:#fff"></strong>Continue with Apple</button>
-      <p class="sub">Don't have an account? <a href="#login" class="accent" style="text-decoration:none">Sign up</a></p>
-    </section>`,
+      <button class="field social" data-auth="google"><strong style="color:#4285f4">G</strong>Continue with Google</button>
+      <button class="field social" data-auth="apple"><strong style="color:#fff"></strong>Continue with Apple</button>
+      <p class="sub">${switchText}</p>`}
+    </section>`;
+  },
 
   explore: () => `
     ${exploreHeader('list')}
@@ -271,15 +316,7 @@ const screens = {
 
   map: () => `
     ${exploreHeader('map')}
-    <section class="map" aria-label="Illustrative map of East Coast Park">
-      <div class="pills"><span class="pill">${icon('flame')}BBQ pits ✓</span><span class="pill">${icon('pin')}Facilities ✓</span></div>
-      <div class="pins">
-        <button class="pin" data-pit="A"><span class="drop">${icon('flame')}</span>Area A<br>120m<br>2min walk</button>
-        <span class="you" role="img" aria-label="Your location"></span>
-        <button class="pin" data-pit="D"><span class="drop">${icon('flame')}</span>Area D<br>85m<br>1min walk</button>
-      </div>
-      <p class="muted">Illustrative map · sample walking estimates</p>
-    </section>`,
+    <div id="onemap" class="map" role="region" aria-label="OneMap of East Coast Park"></div>`,
 
   pit: () => {
     const p = PITS[state.viewing];
@@ -386,7 +423,7 @@ const screens = {
   profile: () => `
     ${eyebrow('BBQ PIT FINDER')}
     <h1>Your Page</h1>
-    <section class="card row"><span class="avatar">AL</span><div><strong style="font-size:1.2rem">Alex Lim</strong><br><button class="link">✎ Edit Name</button></div></section>
+    <section class="card row"><span class="avatar">${esc(initials())}</span><div><strong style="font-size:1.2rem">${esc(displayName())}</strong><br><span class="muted">${esc(session?.user?.email || '')}</span><br><button class="link" data-edit-name>✎ Edit Name</button></div></section>
     <h2>Account Settings</h2>
     <ul class="card list">
       <li>${icon('user')}<span>Personal information<small>Name and email address</small></span><span class="go">${icon('chev')}</span></li>
@@ -403,19 +440,219 @@ const screens = {
       <li>${icon('info')}<span>Help &amp; feedback</span><span class="go">${icon('chev')}</span></li>
       <li>${icon('info')}<span>About BBQ Pit Finder<small>Demo version · Terms &amp; privacy</small></span><span class="go">${icon('chev')}</span></li>
     </ul>
+    <button class="btn" data-signout style="background:#1c1816;border:1px solid var(--line-soft)">Sign out</button>
     <p class="muted row">${icon('out')}We help you find your fire. All bookings and payments stay on the managing agency's official website.</p>`,
 };
 
 /* which bottom-nav tab is highlighted per route */
 const TAB = { explore:'explore', map:'explore', pit:'explore', compare:'explore', search:'explore', saved:'saved', recent:'saved', profile:'profile' };
 
+/* ---------- OneMap config + search ---------- */
+// Your deployed Supabase Edge Function (it holds the OneMap login; none is stored here)
+const TOKEN_URL = 'https://xatgzoturyuygtgukegt.supabase.co/functions/v1/onemap-token';
+let onemapToken = null;
+
+async function getToken(force = false) {
+  if (onemapToken && !force) return onemapToken;
+  let res;
+  try {
+    // The publishable key is public by design; Supabase's gateway asks for it on function calls
+    res = await fetch(TOKEN_URL, { headers: { apikey: SUPABASE_KEY } });
+  } catch (err) { throw new Error('token-network'); }          // blocked, offline, or CORS
+  if (!res.ok) throw new Error('token-' + res.status);
+  const data = await res.json().catch(() => ({}));
+  if (!data.token) throw new Error('token-empty');
+  onemapToken = data.token;
+  return onemapToken;
+}
+
+async function searchPlace(query, retry = true) {
+  const url = 'https://www.onemap.gov.sg/api/common/elastic/search?searchVal=' +
+    encodeURIComponent(query) + '&returnGeom=Y&getAddrDetails=Y&pageNum=1';
+  let res;
+  try { res = await fetch(url, { headers: { Authorization: await getToken() } }); }
+  catch (err) { if (String(err.message).startsWith('token')) throw err; throw new Error('search-network'); }
+  if (res.status === 401 && retry) { await getToken(true); return searchPlace(query, false); }
+  if (!res.ok) throw new Error('search-' + res.status);
+  return (await res.json()).results || [];
+}
+
+let found = [];          // current search results
+let focusPoint = null;   // place to show once the map is ready
+let searchMarker = null;
+
+function showPlace(r) {
+  focusPoint = { latlng: [Number(r.LATITUDE), Number(r.LONGITUDE)], label: r.BUILDING && r.BUILDING !== 'NIL' ? r.BUILDING : r.SEARCHVAL };
+  if (map) applyFocus(); else go('map');   // switches to Map, initMap() applies the focus
+}
+
+function applyFocus() {
+  if (!map || !focusPoint) return;
+  searchMarker?.remove();
+  searchMarker = L.marker(focusPoint.latlng).addTo(map).bindPopup(focusPoint.label).openPopup();
+  map.flyTo(focusPoint.latlng, 17);
+  focusPoint = null;
+}
+
+function renderResults(items, message) {
+  const box = document.getElementById('results');
+  if (!box) return;
+  found = items;
+  box.hidden = false;
+  box.innerHTML = message ? `<li class="msg">${message}</li>` :
+    items.slice(0, 5).map((r, i) => `<li><button data-result="${i}">${r.BUILDING && r.BUILDING !== 'NIL' ? r.BUILDING : r.SEARCHVAL}<small>${r.ADDRESS}</small></button></li>`).join('');
+}
+
+let searchTimer;
+document.addEventListener('input', e => {
+  if (e.target.id !== 'place-search') return;
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+  if (q.length < 3) { const b = document.getElementById('results'); if (b) b.hidden = true; return; }
+  searchTimer = setTimeout(async () => {
+    renderResults([], 'Searching OneMap…');
+    try {
+      const items = await searchPlace(q);
+      renderResults(items, items.length ? '' : 'No places found. Try a different name or postal code.');
+    } catch (err) {
+      console.error('Place search failed:', err);
+      const m = String(err.message);
+      renderResults([], m === 'token-network' ? "Can't reach the token service. Check the onemap-token function is deployed (see Console)."
+        : m === 'token-401' || m === 'token-403' ? 'Token service refused the request. Check Verify JWT and the apikey (see Console).'
+        : m === 'token-404' ? 'Token function not found. Deploy a function named onemap-token.'
+        : m.startsWith('token-') ? 'Could not get a OneMap token. Check the function secrets and logs.'
+        : m === 'search-429' ? 'OneMap is busy. Try again in a moment.'
+        : m.startsWith('search-') ? 'OneMap search failed (' + m.slice(7) + '). Try again.'
+        : 'Search is unavailable right now. Check your connection and try again.');
+    }
+  }, 400);
+});
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-result]');
+  if (b) showPlace(found[Number(b.dataset.result)]);
+});
+
+/* ---------- OneMap (Leaflet) ---------- */
+let map = null;
+
+function destroyMap() { if (map) { map.remove(); map = null; searchMarker = null; } }
+
+function initMap() {
+  const el = document.getElementById('onemap');
+  if (!el) return;
+  if (typeof L === 'undefined') {
+    el.innerHTML = '<p class="card sub" style="margin:14px">Map library failed to load. Check your internet connection.</p>';
+    return;
+  }
+  map = L.map(el, { zoomControl: false }).setView([1.3012, 103.9080], 15);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', {
+    detectRetina: true, minZoom: 11, maxZoom: 19,
+    attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>&nbsp;&copy;&nbsp;contributors&nbsp;&#124;&nbsp;<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener">Singapore Land Authority</a>'
+  }).addTo(map);
+
+  Object.values(PITS).forEach(p => {
+    const icon = L.divIcon({
+      className: 'pit-marker', iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -34],
+      html: '<span class="pin"><span class="drop"><svg class="i"><use href="#flame"/></svg></span></span>'
+    });
+    L.marker(p.coords, { icon, title: 'East Coast Park ' + p.area }).addTo(map)
+      .bindPopup(`<strong>East Coast Park ${p.area}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
+  });
+  setTimeout(() => map && map.invalidateSize(), 150);
+  applyFocus();
+}
+
+/* ---------- Supabase auth ---------- */
+// The publishable key is designed to be public. NEVER put a secret/service_role key in front-end code.
+const SUPABASE_URL = 'https://xatgzoturyuygtgukegt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_k6u5Nka26BQpQOP4R1H6Zw_lJ4PBUpT';
+const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+const REDIRECT = location.origin + location.pathname;   // must be allowed in Supabase > Auth > URL Configuration
+
+let session = null;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const displayName = () => session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Guest';
+const initials = () => displayName().split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+const authMsg = (text, isError = false) => {
+  const el = document.getElementById('auth-msg');
+  if (el) { el.textContent = text; el.style.color = isError ? '#ff8a6a' : 'var(--accent-soft)'; }
+};
+
+const authUi = { step: 'email', mode: 'login', email: '' };   // step: 'email' -> 'password'
+const rerenderLogin = () => {
+  go('login', { push: false });
+  document.getElementById(authUi.step === 'password' ? 'login-password' : 'login-email')?.focus();
+};
+
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'login-form') return;
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return authMsg('Enter a valid email address, like name@example.com.', true);
+  authUi.email = email;
+
+  // Step 1: email entered -> ask for the password
+  if (authUi.step === 'email') { authUi.step = 'password'; return rerenderLogin(); }
+
+  // Step 2: password entered -> log in or sign up
+  const password = document.getElementById('login-password').value;
+  const signup = authUi.mode === 'signup';
+  if (!password) return authMsg('Enter your password.', true);
+  if (signup && password.length < 8) return authMsg('Use at least 8 characters for your password.', true);
+
+  const buttons = e.target.querySelectorAll('button'); buttons.forEach(b => b.disabled = true);
+  authMsg(signup ? 'Creating your account…' : 'Logging in…');
+
+  if (signup) {
+    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: REDIRECT } });
+    buttons.forEach(b => b.disabled = false);
+    if (error) authMsg(error.message, true);
+    else if (data.user && data.user.identities && data.user.identities.length === 0)
+      authMsg('That email already has an account. Try logging in.', true);
+    else if (!data.session) authMsg('Account created. Check your email to confirm it, then log in.');
+    // if a session came back, onAuthStateChange takes the user to Explore
+  } else {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    buttons.forEach(b => b.disabled = false);
+    if (error) authMsg(error.status === 400 ? 'Incorrect email or password.' : error.message, true);
+  }
+});
+
+document.addEventListener('click', async e => {
+  const oauth = e.target.closest('[data-auth]');
+  if (oauth) {
+    const { error } = await sb.auth.signInWithOAuth({ provider: oauth.dataset.auth, options: { redirectTo: REDIRECT } });
+    if (error) authMsg(error.message, true);
+  }
+  const modeBtn = e.target.closest('[data-auth-mode]');
+  if (modeBtn) { authUi.mode = modeBtn.dataset.authMode; rerenderLogin(); }
+  const eye = e.target.closest('[data-toggle-pw]');
+  if (eye) {
+    const input = document.getElementById('login-password');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    eye.setAttribute('aria-pressed', String(show));
+    eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    eye.querySelector('use').setAttribute('href', show ? '#eye' : '#eye-off');
+  }
+  if (e.target.closest('[data-signout]')) await sb.auth.signOut();
+  if (e.target.closest('[data-edit-name]')) {
+    const name = prompt('Your name', displayName());
+    if (name && name.trim()) await sb.auth.updateUser({ data: { full_name: name.trim() } });
+  }
+});
+
 /* ---------- router ---------- */
 const view = $('#view'), nav = $('#nav');
 const history = [];
 
 function go(route, { push = true } = {}) {
-  if (!screens[route]) route = 'login';
+  if (!screens[route] || (!session && route !== 'login')) route = 'login';
   if (push) history.push(route);
+  destroyMap();
   view.innerHTML = screens[route]();
   view.className = route === 'login' ? 'auth' : '';
   view.scrollTop = 0;
@@ -426,6 +663,7 @@ function go(route, { push = true } = {}) {
   });
   view.dataset.route = route;
   view.focus({ preventScroll: true });
+  if (route === 'map') requestAnimationFrame(initMap);
 }
 
 function back() {
@@ -457,7 +695,19 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.matches('article[data-pit]')) e.target.click();
 });
 
-go('login');
+if (!sb) {
+  go('login');
+  authMsg('Sign-in could not load. Check your internet connection and reload.', true);
+} else {
+  sb.auth.onAuthStateChange((event, s) => {
+    session = s;
+    const route = view.dataset.route;
+    if (event === 'INITIAL_SESSION') go(s ? 'explore' : 'login', { push: false });
+    else if (event === 'SIGNED_IN' && route === 'login') go('explore');
+    else if (event === 'SIGNED_OUT') { history.length = 0; Object.assign(authUi, { step: 'email', mode: 'login', email: '' }); go('login'); }
+    else if (event === 'USER_UPDATED' && route) go(route, { push: false });
+  });
+}
 </script>
 </body>
 </html>
