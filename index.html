@@ -197,6 +197,43 @@ const state = {
   baseline: null,
 };
 
+/* ---------- MRT reference list & distance calculator ---------- */
+const MRT_STATIONS = [
+  { name: "Pasir Ris MRT", exit: "Exit B", coords: [1.372886, 103.949136] },
+  { name: "Changi Airport MRT", exit: "Exit A", coords: [1.3573, 103.9897] },
+  { name: "East Coast / Marine Parade MRT", exit: "Exit 4", coords: [1.304566, 103.907627] },
+  { name: "Mountbatten MRT", exit: "Exit B", coords: [1.306046, 103.883248] },
+  { name: "Clementi MRT", exit: "Exit A", coords: [1.315374, 103.764982] },
+  { name: "Jurong East MRT", exit: "Exit C", coords: [1.3332, 103.7423] },
+  { name: "Ang Mo Kio MRT", exit: "Exit D", coords: [1.3699, 103.8495] },
+  { name: "Woodlands MRT", exit: "Exit 1", coords: [1.4369, 103.7865] }
+];
+
+function calculateNearestMRT(pitLat, pitLng) {
+  if (!pitLat || !pitLng) return "Confirm route";
+  
+  let nearest = MRT_STATIONS[0];
+  let minDistance = Infinity;
+
+  MRT_STATIONS.forEach(mrt => {
+    const dLat = (mrt.coords[0] - pitLat) * (Math.PI / 180);
+    const dLng = (mrt.coords[1] - pitLng) * (Math.PI / 180);
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(pitLat * (Math.PI / 180)) * Math.cos(mrt.coords[0] * (Math.PI / 180)) * 
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const distance = 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearest = mrt;
+    }
+  });
+
+  const distanceMeters = Math.round(minDistance * 1000);
+  return `${nearest.name} (${nearest.exit}) · ~${distanceMeters}m`;
+}
+
 /* ---------- helpers ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
 const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#${name}"/></svg>`;
@@ -216,7 +253,7 @@ function pitCard(id, { cta = true, label = '' } = {}) {
         <span class="tag">Public Sector</span>
         <h3>${p.area}</h3>
         <p class="rating">★ ${p.rating} (${p.reviews} demo reviews)</p>
-        <p class="meta"><span>${icon('pin')} ${p.area}, Singapore</span><span>${icon('compass')} Nearest MRT: confirm route</span></p>
+        <p class="meta"><span>${icon('pin')} ${p.area}, Singapore</span><span>${icon('compass')} Nearest MRT: ${p.nearestMRT || 'Confirm route'}</span></p>
         <p class="price">${p.price || PRICE}</p>
       </div>
       ${saveBtn(id)}
@@ -366,6 +403,7 @@ async function loadSupabasePits() {
 
         const lat = parseFloat(pit.latitude);
         const lng = parseFloat(pit.longitude);
+        const nearestMrtText = calculateNearestMRT(lat, lng);
 
         newPits[pitId] = {
           id: pitId,
@@ -377,7 +415,8 @@ async function loadSupabasePits() {
           fac: parsedFacilities,
           photo: ['a','c','d'].includes(pit.photo_key) ? pit.photo_key : ['d','a','c'][index % 3],
           price: pit.price || PRICE,
-          coords: [!isNaN(lat) ? lat : 1.3000, !isNaN(lng) ? lng : 103.9110]
+          coords: [!isNaN(lat) ? lat : 1.3000, !isNaN(lng) ? lng : 103.9110],
+          nearestMRT: nearestMrtText
         };
       });
 
@@ -486,7 +525,7 @@ const screens = {
         <li class="fact"><i>${icon('compass')}</i><span><small>Organisation</small>Managing agency: confirmation pending</span></li>
         <li class="fact"><i>${icon('clock')}</i><span><small>Operating times</small>Not confirmed. Check official booking times.</span></li>
         <li class="fact"><i>${icon('pin')}</i><span><small>Address</small>${p.area}, Singapore. Confirm exact location before travelling.</span></li>
-        <li class="fact"><i>${icon('users')}</i><span><small>Nearest MRT</small>Station and walking route: not yet verified</span></li>
+        <li class="fact"><i>${icon('users')}</i><span><small>Nearest MRT</small>${p.nearestMRT || 'Station and walking route: not yet verified'}</span></li>
         <li class="fact"><i>${icon('access')}</i><span><small>Accessibility</small>${p.accessLong}</span></li>
       </ul>
     </section>
@@ -706,7 +745,6 @@ function initMap() {
   const pitValues = Object.values(PITS);
   console.log(`Plotting ${pitValues.length} BBQ pits onto the Leaflet map.`);
 
-  // Plot ALL loaded pits onto the map
   pitValues.forEach(p => {
     if (!p.coords || p.coords.length !== 2) return;
     const latLng = [p.coords[0], p.coords[1]];
@@ -846,7 +884,6 @@ if (!sb) {
   go('login');
   authMsg('Sign-in could not load.', true);
 } else {
-  // Fetch all pits from Supabase immediately on startup
   loadSupabasePits();
 
   sb.auth.onAuthStateChange((event, s) => {
