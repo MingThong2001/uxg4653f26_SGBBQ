@@ -83,7 +83,7 @@ svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;
 .leaflet-popup-content .link{cursor:pointer}
 .pit-marker{background:none;border:0}
 
-.results{margin-top:-8px;border:1px solid var(--line);border-radius:14px;background:#14100e;overflow:hidden}
+.results{margin-top:-8px;border:1px solid var(--line);border-radius:14px;background:#14100e;overflow-y:auto;max-height:260px;z-index:100;position:relative}
 .results button{display:block;width:100%;padding:12px 14px;border-top:1px solid var(--line-soft);font-size:.85rem}
 .results button:first-child{border-top:0}
 .results button:hover,.results button:focus-visible{background:#2a1409}
@@ -170,6 +170,7 @@ nav [aria-current=page] span{background:var(--accent);color:#fff}
   <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
   <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 4M6.4 7.4C3.8 9.2 2 12 2 12s4 7 10 7c1.6 0 3-.4 4.3-1M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  <symbol id="wifi" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></symbol>
 </svg>
 
 <div class="app" id="app">
@@ -188,13 +189,14 @@ nav [aria-current=page] span{background:var(--accent);color:#fff}
 let PITS = {};
 let pitsLoadMsg = '';
 const PRICE = '$20/pit · 2hrs';
-const FAC_ICON = { Toilets:'pin', Water:'drop', Lights:'bulb', Parking:'compass' };
+const FAC_ICON = { Toilets:'pin', Water:'drop', Lights:'bulb', Parking:'compass', WiFi:'wifi' };
 
 const state = {
   saved: new Set(),
   viewing: null,
   comparing: [],
   baseline: null,
+  searchQuery: '', // Tracks active search filter
 };
 
 /* ---------- MRT reference list & distance calculator ---------- */
@@ -234,12 +236,44 @@ function calculateNearestMRT(pitLat, pitLng) {
   return `${nearest.name} (${nearest.exit}) · ~${distanceMeters}m`;
 }
 
+/* ---------- Wireless@SG WiFi reference list & checker (within 50m) ---------- */
+const WIFI_HOTSPOTS = [
+  { name: "Bukit Batok CC WiFi", coords: [1.3501908, 103.7475144] },
+  { name: "Northpoint Drive WiFi", coords: [1.4280358, 103.8360921] },
+  { name: "Waterloo St WiFi", coords: [1.3001966, 103.8529753] },
+  { name: "Upper Pickering St WiFi", coords: [1.2863294, 103.8464793] },
+  { name: "Anchorvale Canteen WiFi", coords: [1.3992286, 103.8896539] },
+  { name: "Telok Blangah WiFi", coords: [1.2744687, 103.8214741] },
+  { name: "Woodlands Ave 1 WiFi", coords: [1.4274928, 103.7922408] },
+  { name: "Tampines Industrial WiFi", coords: [1.3603925, 103.9296947] }
+];
+
+function hasNearbyWiFi(pitLat, pitLng) {
+  if (!pitLat || !pitLng) return false;
+  
+  for (let i = 0; i < WIFI_HOTSPOTS.length; i++) {
+    const wifi = WIFI_HOTSPOTS[i];
+    const dLat = (wifi.coords[0] - pitLat) * (Math.PI / 180);
+    const dLng = (wifi.coords[1] - pitLng) * (Math.PI / 180);
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(pitLat * (Math.PI / 180)) * Math.cos(wifi.coords[0] * (Math.PI / 180)) * 
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const distanceMeters = 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) * 1000;
+
+    if (distanceMeters <= 50) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* ---------- helpers ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
 const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#${name}"/></svg>`;
 const saveBtn = id => `<button class="save" data-save="${id}" aria-pressed="${state.saved.has(id)}" aria-label="Save ${PITS[id]?.area || ''}">${icon('bookmark')}</button>`;
 const notice = text => `<button class="notice" data-go="explore">${icon('info')}<span>${text}</span><span class="go">${icon('chev')}</span></button>`;
-const search = () => `<label class="field">${icon('search')}<input type="search" placeholder="Search by park, area or facility" aria-label="Search by park, area or facility"></label>`;
+const search = () => `<label class="field">${icon('search')}<input type="search" placeholder="Search by area or facility (e.g. Woodlands, WiFi)" aria-label="Search by area or facility"></label>`;
 const eyebrow = text => `<p class="eyebrow">${icon('flame')}${text}</p>`;
 
 function pitCard(id, { cta = true, label = '' } = {}) {
@@ -253,7 +287,10 @@ function pitCard(id, { cta = true, label = '' } = {}) {
         <span class="tag">Public Sector</span>
         <h3>${p.area}</h3>
         <p class="rating">★ ${p.rating} (${p.reviews} demo reviews)</p>
-        <p class="meta"><span>${icon('pin')} ${p.area}, Singapore</span><span>${icon('compass')} Nearest MRT: ${p.nearestMRT || 'Confirm route'}</span></p>
+        <p class="meta">
+          <span>${icon('pin')} ${p.area}, Singapore</span>
+          <span>${icon('compass')} Nearest MRT: ${p.nearestMRT || 'Confirm route'}</span>
+        </p>
         <p class="price">${p.price || PRICE}</p>
       </div>
       ${saveBtn(id)}
@@ -269,7 +306,7 @@ function pitCard(id, { cta = true, label = '' } = {}) {
 const exploreHeader = mode => `
   ${eyebrow('BBQ PIT FINDER')}
   <h1>Find your fire.</h1>
-  ${search().replace('<input ','<input id="place-search" autocomplete="off" ')}
+  ${search().replace('<input ','<input id="place-search" autocomplete="off" value="' + esc(state.searchQuery) + '" ')}
   <ul class="results" id="results" aria-live="polite" hidden></ul>
   <div class="filters">
     <button class="field">${icon('cal')}<span>Date and time</span></button>
@@ -342,7 +379,7 @@ async function loadPitCarparks() {
   }
 }
 
-/* ---------- Supabase Database Data Loader (Pagination for all 615 rows) ---------- */
+/* ---------- Supabase Database Data Loader ---------- */
 const SUPABASE_URL = 'https://xatgzoturyuygtgukegt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_k6u5Nka26BQpQOP4R1H6Zw_lJ4PBUpT';
 const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -403,6 +440,11 @@ async function loadSupabasePits() {
 
         const lat = parseFloat(pit.latitude);
         const lng = parseFloat(pit.longitude);
+
+        if (hasNearbyWiFi(lat, lng) && !parsedFacilities.includes('WiFi')) {
+          parsedFacilities.push('WiFi');
+        }
+
         const nearestMrtText = calculateNearestMRT(lat, lng);
 
         newPits[pitId] = {
@@ -429,13 +471,12 @@ async function loadSupabasePits() {
         state.saved = new Set([allIds[0]]);
       }
 
-      // Refresh active view (list or map) with loaded data
       const currentRoute = document.getElementById('view')?.dataset?.route;
       if (currentRoute === 'explore' || currentRoute === 'map') {
         go(currentRoute, { push: false });
       }
     } else {
-      if (!pitsLoadMsg) pitsLoadMsg = 'Supabase returned 0 pits. Usually Row Level Security is on with no read policy for the public (anon) role. Add a SELECT policy to the pits table.';
+      if (!pitsLoadMsg) pitsLoadMsg = 'Supabase returned 0 pits. Usually Row Level Security is on with no read policy for the public role.';
       const r = document.getElementById('view')?.dataset?.route;
       if (r === 'explore' || r === 'map') go(r, { push: false });
     }
@@ -483,10 +524,23 @@ const screens = {
 
   explore: () => {
     const allIds = Object.keys(PITS);
-    const listIds = allIds.slice(0, 5); // Display first 5 in list for high performance
+    const q = state.searchQuery.toLowerCase().trim();
+    const filteredIds = q 
+      ? allIds.filter(id => {
+          const p = PITS[id];
+          const matchArea = p.area && p.area.toLowerCase().includes(q);
+          const matchFacility = p.fac && p.fac.some(f => f.toLowerCase().includes(q));
+          return matchArea || matchFacility;
+        })
+      : allIds.slice(0, 5);
+
     return `
     ${exploreHeader('list')}
-    ${listIds.length > 0 ? listIds.map(id => pitCard(id)).join('') : `<p class="card sub">${pitsLoadMsg || 'Loading pits from database...'}</p>`}
+    <div id="pit-list-container" style="display:flex; flex-direction:column; gap:16px;">
+      ${filteredIds.length > 0 
+        ? filteredIds.map(id => pitCard(id)).join('') 
+        : `<p class="card sub">No BBQ pits or facilities found matching "${esc(state.searchQuery)}"</p>`}
+    </div>
     ${notice('Confirm facilities, availability and final prices on the official site.')}`;
   },
 
@@ -559,7 +613,7 @@ const screens = {
     <div class="card comparing"><div class="photo photo-${base?.photo || 'd'}"></div>
       <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.area || ''}</strong><br><span class="muted">${PRICE} · sample</span></p>
       <span class="accent">${icon('target')}</span></div>
-    <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span></div>
+    <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
     <div class="row between"><h2>Recently Seen</h2><span class="link">${others.length} other pits</span></div>
     ${others.slice(0,1).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}
     <section class="card stack"><h2 style="font-size:1rem">Find the right fit for your gathering</h2>
@@ -581,7 +635,7 @@ const screens = {
     <div class="duo">${[a,b].map(p => `<div><div class="photo photo-${p.photo}"></div>
       <h2 style="font-size:1.2rem">${p.area}</h2>
       <span class="rating">★ ${p.rating} · ${p.reviews} demo reviews</span><strong>${PRICE}</strong></div>`).join('')}</div>
-    ${section('Location','pin',a.area,b.area,'Nearest MRT and walking route: confirm before travelling.')}
+    ${section('Location','pin',a.area,b.area,'Nearest MRT: confirm before travelling.')}
     ${section('Price','compass',PRICE,PRICE,'Final prices and time slots are set by the official booking site.')}
     ${section('Accessibility','access',a.access,b.access,'Demo attributes. Step-free access and route conditions need confirmation.')}
     ${section('Facilities','flame',a.fac.join('<br>')+'<br>Shelter: unconfirmed',b.fac.join('<br>')+'<br>Shelter',"Illustrative amenities; check the managing agency's listing.")}
@@ -639,89 +693,74 @@ const screens = {
 
 const TAB = { explore:'explore', map:'explore', pit:'explore', compare:'explore', search:'explore', saved:'saved', recent:'saved', profile:'profile' };
 
-/* ---------- OneMap config + search ---------- */
-const TOKEN_URL = 'https://xatgzoturyuygtgukegt.supabase.co/functions/v1/onemap-token';
-let onemapToken = null;
-
-async function getToken(force = false) {
-  if (onemapToken && !force) return onemapToken;
-  let res;
-  try {
-    res = await fetch(TOKEN_URL, { headers: { apikey: SUPABASE_KEY } });
-  } catch (err) { throw new Error('token-network'); }
-  if (!res.ok) throw new Error('token-' + res.status);
-  const data = await res.json().catch(() => ({}));
-  if (!data.token) throw new Error('token-empty');
-  onemapToken = data.token;
-  return onemapToken;
-}
-
-async function searchPlace(query, retry = true) {
-  const url = 'https://www.onemap.gov.sg/api/common/elastic/search?searchVal=' +
-    encodeURIComponent(query) + '&returnGeom=Y&getAddrDetails=Y&pageNum=1';
-  let res;
-  try { res = await fetch(url, { headers: { Authorization: await getToken() } }); }
-  catch (err) { if (String(err.message).startsWith('token')) throw err; throw new Error('search-network'); }
-  if (res.status === 401 && retry) { await getToken(true); return searchPlace(query, false); }
-  if (!res.ok) throw new Error('search-' + res.status);
-  return (await res.json()).results || [];
-}
-
-let found = [];
-let focusPoint = null;
-let searchMarker = null;
-
-function showPlace(r) {
-  focusPoint = { latlng: [Number(r.LATITUDE), Number(r.LONGITUDE)], label: r.BUILDING && r.BUILDING !== 'NIL' ? r.BUILDING : r.SEARCHVAL };
-  if (map) applyFocus(); else go('map');
-}
-
-function applyFocus() {
-  if (!map || !focusPoint) return;
-  searchMarker?.remove();
-  searchMarker = L.marker(focusPoint.latlng).addTo(map).bindPopup(focusPoint.label).openPopup();
-  map.flyTo(focusPoint.latlng, 17);
-  focusPoint = null;
-}
-
-function renderResults(items, message) {
+/* ---------- Local BBQ Pit Search Handler ---------- */
+function renderPitResults(matches, message) {
   const box = document.getElementById('results');
   if (!box) return;
-  found = items;
   box.hidden = false;
-  box.innerHTML = message ? `<li class="msg">${message}</li>` :
-    items.slice(0, 5).map((r, i) => `<li><button data-result="${i}">${r.BUILDING && r.BUILDING !== 'NIL' ? r.BUILDING : r.SEARCHVAL}<small>${r.ADDRESS}</small></button></li>`).join('');
+  if (message) {
+    box.innerHTML = `<li class="msg">${message}</li>`;
+    return;
+  }
+  box.innerHTML = matches.slice(0, 6).map(pit => `
+    <li>
+      <button type="button" data-pit="${pit.id}">
+        <strong>${pit.area}</strong>
+        <small>Facilities: ${pit.fac.join(', ')}</small>
+      </button>
+    </li>
+  `).join('');
 }
 
 let searchTimer;
 document.addEventListener('input', e => {
   if (e.target.id !== 'place-search') return;
   clearTimeout(searchTimer);
-  const q = e.target.value.trim();
-  if (q.length < 3) { const b = document.getElementById('results'); if (b) b.hidden = true; return; }
-  searchTimer = setTimeout(async () => {
-    renderResults([], 'Searching OneMap…');
-    try {
-      const items = await searchPlace(q);
-      renderResults(items, items.length ? '' : 'No places found. Try a different name or postal code.');
-    } catch (err) {
-      console.error('Place search failed:', err);
-    }
-  }, 400);
-});
+  const q = e.target.value.trim().toLowerCase();
+  state.searchQuery = q;
 
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-result]');
-  if (b) showPlace(found[Number(b.dataset.result)]);
+  searchTimer = setTimeout(() => {
+    // Filter local PITS dataset for dropdown suggestions
+    const matches = Object.values(PITS).filter(pit => {
+      const matchArea = pit.area && pit.area.toLowerCase().includes(q);
+      const matchFacility = pit.fac && pit.fac.some(f => f.toLowerCase().includes(q));
+      return matchArea || matchFacility;
+    });
+
+    renderPitResults(matches, matches.length ? '' : 'No matching BBQ pits or facilities found.');
+
+    // Update view sections based on active route
+    const currentRoute = document.getElementById('view')?.dataset?.route;
+    if (currentRoute === 'explore') {
+      const listContainer = document.getElementById('pit-list-container');
+      if (listContainer) {
+        const allIds = Object.keys(PITS);
+        const filteredIds = q 
+          ? allIds.filter(id => {
+              const p = PITS[id];
+              const matchArea = p.area && p.area.toLowerCase().includes(q);
+              const matchFacility = p.fac && p.fac.some(f => f.toLowerCase().includes(q));
+              return matchArea || matchFacility;
+            })
+          : allIds.slice(0, 5);
+
+        listContainer.innerHTML = filteredIds.length > 0 
+          ? filteredIds.map(id => pitCard(id)).join('') 
+          : `<p class="card sub">No BBQ pits or facilities found matching "${esc(q)}"</p>`;
+      }
+    } else if (currentRoute === 'map') {
+      updateMapMarkers();
+    }
+  }, 200);
 });
 
 let map = null;
+let mapMarkers = {};
 
 function destroyMap() { 
   if (map) { 
     map.remove(); 
     map = null; 
-    searchMarker = null; 
   } 
 }
 
@@ -741,17 +780,41 @@ function initMap() {
     attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>'
   }).addTo(map);
 
-  const bounds = [];
-  const pitValues = Object.values(PITS);
-  console.log(`Plotting ${pitValues.length} BBQ pits onto the Leaflet map.`);
+  updateMapMarkers();
+}
 
-  pitValues.forEach(p => {
-    if (!p.coords || p.coords.length !== 2) return;
+function updateMapMarkers() {
+  if (!map) return;
+
+  map.eachLayer(layer => {
+    if (layer instanceof L.CircleMarker) {
+      map.removeLayer(layer);
+    }
+  });
+
+  const q = state.searchQuery.toLowerCase().trim();
+  const allIds = Object.keys(PITS);
+  
+  const filteredIds = q 
+    ? allIds.filter(id => {
+        const p = PITS[id];
+        const matchArea = p.area && p.area.toLowerCase().includes(q);
+        const matchFacility = p.fac && p.fac.some(f => f.toLowerCase().includes(q));
+        return matchArea || matchFacility;
+      })
+    : allIds;
+
+  const bounds = [];
+  mapMarkers = {};
+
+  filteredIds.forEach(id => {
+    const p = PITS[id];
+    if (!p || !p.coords || p.coords.length !== 2) return;
     const latLng = [p.coords[0], p.coords[1]];
     bounds.push(latLng);
 
     const marker = L.circleMarker(latLng, {
-      radius: 6,
+      radius: 7,
       fillColor: '#ff6a1a',
       color: '#ffffff',
       weight: 1.5,
@@ -760,14 +823,14 @@ function initMap() {
     }).addTo(map);
 
     marker.bindPopup(`<strong>${p.area}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
+    mapMarkers[id] = marker;
   });
 
   if (bounds.length > 0) {
-    map.fitBounds(bounds, { padding: [30, 30] });
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
   }
 
   setTimeout(() => map && map.invalidateSize(), 150);
-  applyFocus();
 }
 
 /* ---------- Supabase auth ---------- */
