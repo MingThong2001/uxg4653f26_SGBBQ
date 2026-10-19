@@ -196,6 +196,7 @@ const state = {
   comparing: [],
   baseline: null,
   searchQuery: '',
+  savedSearchQuery: '', 
 };
 
 const MRT_STATIONS = [
@@ -533,14 +534,28 @@ const screens = {
     </div>`;
   },
 
-  saved: () => `
+  saved: () => {
+    const q = state.savedSearchQuery.toLowerCase().trim();
+    const savedIds = [...state.saved];
+    const filteredIds = q ? savedIds.filter(id => {
+      const p = PITS[id];
+      return p && (p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
+    }) : savedIds;
+
+    return `
     ${eyebrow('BBQ PIT FINDER')}
     <h1>Your favourite fires.</h1>
     <p class="sub">Good spots, kept close for your next gathering.</p>
-    ${search()}
-    <div class="row between"><h2>Saved pits</h2><span class="link">${state.saved.size} places</span></div>
-    ${state.saved.size ? [...state.saved].map(id => pitCard(id)).join('') : '<p class="card sub">Nothing saved yet. Tap the bookmark on any pit to keep it here.</p>'}
-    ${notice("Your shortlist is not a reservation. Booking happens on the managing agency's official website.")}`,
+    <label class="field">
+      ${icon('search')}
+      <input type="search" id="saved-search" autocomplete="off" placeholder="Search saved pits by area or facility..." value="${esc(state.savedSearchQuery)}" aria-label="Search saved pits">
+    </label>
+    <div class="row between"><h2>Saved pits</h2><span class="link">${filteredIds.length} places</span></div>
+    <div id="saved-list-container" style="display:flex; flex-direction:column; gap:16px;">
+      ${filteredIds.length ? filteredIds.map(id => pitCard(id)).join('') : '<p class="card sub">No matching saved pits found.</p>'}
+    </div>
+    ${notice("Your shortlist is not a reservation. Booking happens on the managing agency's official website.")}`;
+  },
 
   profile: () => `
     ${eyebrow('BBQ PIT FINDER')}
@@ -584,6 +599,33 @@ document.addEventListener('input', e => {
     }
   }, 200);
 });
+
+let savedSearchTimer;
+document.addEventListener('input', e => {
+  if (e.target.id !== 'saved-search') return;
+  clearTimeout(savedSearchTimer);
+  const q = e.target.value.trim().toLowerCase();
+  state.savedSearchQuery = q;
+
+  savedSearchTimer = setTimeout(() => {
+    const currentRoute = document.getElementById('view')?.dataset?.route;
+    if (currentRoute === 'saved') {
+      const container = document.getElementById('saved-list-container');
+      if (container) {
+        const savedIds = [...state.saved];
+        const filteredIds = q ? savedIds.filter(id => {
+          const p = PITS[id];
+          return p && (p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
+        }) : savedIds;
+
+        container.innerHTML = filteredIds.length 
+          ? filteredIds.map(id => pitCard(id)).join('') 
+          : '<p class="card sub">No matching saved pits found.</p>';
+      }
+    }
+  }, 200);
+});
+
 
 let map = null;
 function destroyMap() { if (map) { map.remove(); map = null; } }
