@@ -262,17 +262,19 @@ const screens = {
 
   search: () => {
     const base = PITS[state.baseline] || Object.values(PITS)[0];
-    const others = Object.keys(PITS).filter(id => id !== state.baseline);
+    // Use your tracked recent items, or increase the slice limit:
+    const recentIds = state.recent.length > 0 ? state.recent : Object.keys(PITS).filter(id => id !== state.baseline);
+    
     return `
     ${eyebrow('Recently Seen')}
     <h1>Search and compare</h1>
-    ${searchBar()}
-    <div class="card comparing"><div class="photo photo-d"></div>
-      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base.area}</strong><br><span class="muted">${PRICE}</span></p>
+    ${search()}
+    <div class="card comparing"><div class="photo photo-${base?.photo || 'd'}"></div>
+      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.area || ''}</strong><br><span class="muted">${PRICE} · sample</span></p>
       <span class="accent">${icon('target')}</span></div>
-    <div class="chips"><span class="chip">East Coast</span><span class="chip">Toilets</span><span class="chip">Step-free</span></div>
-    <div class="row between"><h2>Recently Seen</h2><span class="link">${others.length} other pits</span></div>
-    ${others.slice(0, 1).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}`;
+    <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
+    <div class="row between"><h2>Recently Seen</h2><span class="link">${recentIds.length} other pits</span></div>
+    ${recentIds.slice(0, 3).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}`;
   },
 
   compare: () => {

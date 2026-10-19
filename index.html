@@ -198,6 +198,7 @@ const state = {
   searchQuery: '',
   savedSearchQuery: '', 
   listMode: 'list',
+  recent: [] 
 };
 
 const MRT_STATIONS = [
@@ -468,7 +469,9 @@ const screens = {
 
   search: () => {
     const base = PITS[state.baseline] || Object.values(PITS)[0];
-    const others = Object.keys(PITS).filter(id => id !== state.baseline);
+    const recentIds = state.recent.length > 0 
+      ? state.recent.filter(id => id !== state.baseline) 
+      : Object.keys(PITS).filter(id => id !== state.baseline);
     return `
     ${eyebrow('Recently Seen')}
     <h1>Search and compare</h1>
@@ -477,8 +480,8 @@ const screens = {
       <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.area || ''}</strong><br><span class="muted">${PRICE} · sample</span></p>
       <span class="accent">${icon('target')}</span></div>
     <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
-    <div class="row between"><h2>Recently Seen</h2><span class="link">${others.length} other pits</span></div>
-    ${others.slice(0,1).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}`;
+    <div class="row between"><h2>Recently Seen</h2><span class="link">${recentIds.length} other pits</span></div>
+    ${recentIds.slice(0, 3).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}`;
   },
 
   compare: () => {
@@ -677,7 +680,6 @@ function initMap() {
     L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', { detectRetina: true, minZoom: 9, maxZoom: 19, attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>' }).addTo(map);
   }
 
-  // Clear existing markers
   map.eachLayer(layer => {
     if (layer instanceof L.CircleMarker) {
       map.removeLayer(layer);
@@ -772,6 +774,12 @@ function go(route, { push = true } = {}) {
   if (route === 'pit') { loadPitWeather(); loadPitCarparks(); }
 }
 
+window.viewPitFromMap = (pitId) => {
+  state.viewing = pitId;
+  state.recent = [pitId, ...state.recent.filter(id => id !== pitId)].slice(0, 5);
+  go('pit');
+};
+
 function back() {
   history.pop();
   go(history[history.length - 1] || 'explore', { push: false });
@@ -796,11 +804,14 @@ document.addEventListener('click', e => {
 
   const t = e.target.closest('[data-go],[data-save],[data-pit],[data-compare],[data-back]');
   if (!t) return;
+  
   if (t.dataset.save) {
     state.saved.has(t.dataset.save) ? state.saved.delete(t.dataset.save) : state.saved.add(t.dataset.save);
     const top = view.scrollTop; go(view.dataset.route, { push: false }); view.scrollTop = top;
   } else if (t.dataset.pit) {
-    state.viewing = t.dataset.pit; go('pit');
+    state.viewing = t.dataset.pit;
+    state.recent = [t.dataset.pit, ...state.recent.filter(id => id !== t.dataset.pit)].slice(0, 5);
+    go('pit');
   } else if (t.dataset.compare) {
     state.comparing = [state.baseline, t.dataset.compare]; go('compare');
   } else if ('back' in t.dataset) {
@@ -825,7 +836,7 @@ if (!sb) {
     .subscribe();
 
   sb.auth.onAuthStateChange((event, s) => {
-        session = s;
+    session = s;
     const route = view.dataset.route;
     if (event === 'INITIAL_SESSION') go(s ? 'explore' : 'login', { push: false });
     else if (event === 'SIGNED_IN' && route === 'login') go('explore');
