@@ -185,7 +185,6 @@ nav [aria-current=page] span{background:var(--accent);color:#fff}
 <script>
 'use strict';
 
-/* ---------- data ---------- */
 let PITS = {};
 let pitsLoadMsg = '';
 const PRICE = '$20/pit · 2hrs';
@@ -196,10 +195,9 @@ const state = {
   viewing: null,
   comparing: [],
   baseline: null,
-  searchQuery: '', // Tracks active search filter
+  searchQuery: '',
 };
 
-/* ---------- MRT reference list & distance calculator ---------- */
 const MRT_STATIONS = [
   { name: "Pasir Ris MRT", exit: "Exit B", coords: [1.372886, 103.949136] },
   { name: "Changi Airport MRT", exit: "Exit A", coords: [1.3573, 103.9897] },
@@ -213,30 +211,20 @@ const MRT_STATIONS = [
 
 function calculateNearestMRT(pitLat, pitLng) {
   if (!pitLat || !pitLng) return "Confirm route";
-  
   let nearest = MRT_STATIONS[0];
   let minDistance = Infinity;
 
   MRT_STATIONS.forEach(mrt => {
     const dLat = (mrt.coords[0] - pitLat) * (Math.PI / 180);
     const dLng = (mrt.coords[1] - pitLng) * (Math.PI / 180);
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(pitLat * (Math.PI / 180)) * Math.cos(mrt.coords[0] * (Math.PI / 180)) * 
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(pitLat * (Math.PI / 180)) * Math.cos(mrt.coords[0] * (Math.PI / 180)) * Math.sin(dLng / 2) ** 2;
     const distance = 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-
-    if (distance < minDistance) {
-      minDistance = distance;
-      nearest = mrt;
-    }
+    if (distance < minDistance) { minDistance = distance; nearest = mrt; }
   });
 
-  const distanceMeters = Math.round(minDistance * 1000);
-  return `${nearest.name} (${nearest.exit}) · ~${distanceMeters}m`;
+  return `${nearest.name} (${nearest.exit}) · ~${Math.round(minDistance * 1000)}m`;
 }
 
-/* ---------- Wireless@SG WiFi reference list & checker (within 50m) ---------- */
 const WIFI_HOTSPOTS = [
   { name: "Bukit Batok CC WiFi", coords: [1.3501908, 103.7475144] },
   { name: "Northpoint Drive WiFi", coords: [1.4280358, 103.8360921] },
@@ -250,25 +238,16 @@ const WIFI_HOTSPOTS = [
 
 function hasNearbyWiFi(pitLat, pitLng) {
   if (!pitLat || !pitLng) return false;
-  
   for (let i = 0; i < WIFI_HOTSPOTS.length; i++) {
     const wifi = WIFI_HOTSPOTS[i];
     const dLat = (wifi.coords[0] - pitLat) * (Math.PI / 180);
     const dLng = (wifi.coords[1] - pitLng) * (Math.PI / 180);
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(pitLat * (Math.PI / 180)) * Math.cos(wifi.coords[0] * (Math.PI / 180)) * 
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    const distanceMeters = 6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) * 1000;
-
-    if (distanceMeters <= 50) {
-      return true;
-    }
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(pitLat * (Math.PI / 180)) * Math.cos(wifi.coords[0] * (Math.PI / 180)) * Math.sin(dLng / 2) ** 2;
+    if (6371 * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) * 1000 <= 50) return true;
   }
   return false;
 }
 
-/* ---------- helpers ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
 const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#${name}"/></svg>`;
 const saveBtn = id => `<button class="save" data-save="${id}" aria-pressed="${state.saved.has(id)}" aria-label="Save ${PITS[id]?.area || ''}">${icon('bookmark')}</button>`;
@@ -320,24 +299,15 @@ const exploreHeader = mode => `
     </div>
   </div>`;
 
-/* ---------- LIVE WEATHER & CARPARK INTEGRATION ---------- */
 async function fetchWeatherForecast() {
   try {
     const res = await fetch("https://api-open.data.gov.sg/v2/real-time/api/twenty-four-hr-forecast");
     const json = await res.json();
     if (json.code === 0 && json.data && json.data.records.length > 0) {
       const record = json.data.records[0];
-      return {
-        general: record.general.forecast.text,
-        tempLow: record.general.temperature.low,
-        tempHigh: record.general.temperature.high,
-        humidityLow: record.general.relativeHumidity.low,
-        humidityHigh: record.general.relativeHumidity.high
-      };
+      return { general: record.general.forecast.text, tempLow: record.general.temperature.low, tempHigh: record.general.temperature.high, humidityLow: record.general.relativeHumidity.low, humidityHigh: record.general.relativeHumidity.high };
     }
-  } catch (err) {
-    console.error("Weather API Error:", err);
-  }
+  } catch (err) { console.error("Weather API Error:", err); }
   return null;
 }
 
@@ -345,12 +315,8 @@ async function fetchCarparkAvailability() {
   try {
     const res = await fetch("https://api.data.gov.sg/v1/transport/carpark-availability");
     const json = await res.json();
-    if (json.items && json.items.length > 0) {
-      return json.items[0].carpark_data;
-    }
-  } catch (err) {
-    console.error("Carpark API Error:", err);
-  }
+    if (json.items && json.items.length > 0) return json.items[0].carpark_data;
+  } catch (err) { console.error("Carpark API Error:", err); }
   return [];
 }
 
@@ -358,11 +324,7 @@ async function loadPitWeather() {
   const weatherText = document.getElementById('weather-text');
   if (!weatherText) return;
   const weather = await fetchWeatherForecast();
-  if (weather) {
-    weatherText.innerHTML = `🌤️ <strong>${weather.general}</strong><br>Temp: ${weather.tempLow}°C – ${weather.tempHigh}°C | Humidity: ${weather.humidityLow}%–${weather.humidityHigh}%`;
-  } else {
-    weatherText.textContent = "Live weather data currently unavailable.";
-  }
+  weatherText.innerHTML = weather ? `🌤️ <strong>${weather.general}</strong><br>Temp: ${weather.tempLow}°C – ${weather.tempHigh}°C | Humidity: ${weather.humidityLow}%–${weather.humidityHigh}%` : "Live weather data currently unavailable.";
 }
 
 async function loadPitCarparks() {
@@ -371,81 +333,40 @@ async function loadPitCarparks() {
   const carparks = await fetchCarparkAvailability();
   if (carparks.length > 0) {
     const carLots = carparks.filter(cp => cp.lot_type === 'C').slice(0, 3);
-    carparkText.innerHTML = carLots.map(cp => 
-      `<div>🅿️ Carpark ID ${cp.carpark_number || 'Lot'}: <strong>${cp.lots_available}</strong> / ${cp.total_lots} available (Cars)</div>`
-    ).join('') || "No car parking data found.";
+    carparkText.innerHTML = carLots.map(cp => `<div>🅿️ Carpark ID ${cp.carpark_number || 'Lot'}: <strong>${cp.lots_available}</strong> / ${cp.total_lots} available (Cars)</div>`).join('') || "No car parking data found.";
   } else {
     carparkText.textContent = "Live carpark data currently unavailable.";
   }
 }
 
-/* ---------- Supabase Database Data Loader ---------- */
 const SUPABASE_URL = 'https://xatgzoturyuygtgukegt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_k6u5Nka26BQpQOP4R1H6Zw_lJ4PBUpT';
 const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function loadSupabasePits() {
   try {
-    if (!sb) {
-      console.error("Supabase client not initialized");
-      return;
-    }
-    
-    let allData = [];
-    let page = 0;
-    const pageSize = 1000;
-    let fetchMore = true;
-
+    if (!sb) return;
+    let allData = [], page = 0, pageSize = 1000, fetchMore = true;
     while (fetchMore) {
-      const { data, error } = await sb
-        .from("pits_table")
-        .select("*")
-        .range(page * pageSize, (page + 1) * pageSize - 1);
-
-      if (error) {
-        console.error("Supabase query error:", error);
-        pitsLoadMsg = `Couldn't load pits: ${error.message}`;
-        break;
-      }
-
+      const { data, error } = await sb.from("pits_table").select("*").range(page * pageSize, (page + 1) * pageSize - 1);
+      if (error) break;
       if (data && data.length > 0) {
         allData = allData.concat(data);
-        if (data.length < pageSize) {
-          fetchMore = false;
-        } else {
-          page++;
-        }
-      } else {
-        fetchMore = false;
-      }
+        if (data.length < pageSize) fetchMore = false; else page++;
+      } else fetchMore = false;
     }
-
-    console.log(`Successfully fetched ${allData.length} total pits from Supabase.`);
 
     if (allData.length > 0) {
       const newPits = {};
       allData.forEach((pit, index) => {
         const pitId = pit.id ? String(pit.id).trim() : `pit_${index + 1}`;
-        
         let parsedFacilities = ['Toilets', 'Water'];
-        if (Array.isArray(pit.facilities)) {
-          parsedFacilities = pit.facilities;
-        } else if (typeof pit.facilities === 'string') {
-          parsedFacilities = pit.facilities
-            .replace(/^\{|\}$/g, '')
-            .split(',')
-            .map(f => f.trim().replace(/^"|"$/g, ''))
-            .filter(Boolean);
+        if (Array.isArray(pit.facilities)) parsedFacilities = pit.facilities;
+        else if (typeof pit.facilities === 'string') {
+          parsedFacilities = pit.facilities.replace(/^\{|\}$/g, '').split(',').map(f => f.trim().replace(/^"\vert{}"$/g, '')).filter(Boolean);
         }
-
-        const lat = parseFloat(pit.latitude);
-        const lng = parseFloat(pit.longitude);
-
-        if (hasNearbyWiFi(lat, lng) && !parsedFacilities.includes('WiFi')) {
-          parsedFacilities.push('WiFi');
-        }
-
-        const nearestMrtText = calculateNearestMRT(lat, lng);
+        const lat = parseFloat(pit.latitude), lng = parseFloat(pit.longitude);
+        if (hasNearbyWiFi(lat, lng) && !parsedFacilities.includes('WiFi')) parsedFacilities.push('WiFi');
 
         newPits[pitId] = {
           id: pitId,
@@ -458,41 +379,26 @@ async function loadSupabasePits() {
           photo: ['a','c','d'].includes(pit.photo_key) ? pit.photo_key : ['d','a','c'][index % 3],
           price: pit.price || PRICE,
           coords: [!isNaN(lat) ? lat : 1.3000, !isNaN(lng) ? lng : 103.9110],
-          nearestMRT: nearestMrtText
+          nearestMRT: calculateNearestMRT(lat, lng)
         };
       });
-
       PITS = newPits;
-      
       const allIds = Object.keys(PITS);
       if (allIds.length > 0 && (!state.viewing || !PITS[state.viewing])) {
         state.viewing = allIds[0];
         state.baseline = allIds[0];
         state.saved = new Set([allIds[0]]);
       }
-
       const currentRoute = document.getElementById('view')?.dataset?.route;
-      if (currentRoute === 'explore' || currentRoute === 'map') {
-        go(currentRoute, { push: false });
-      }
-    } else {
-      if (!pitsLoadMsg) pitsLoadMsg = 'Supabase returned 0 pits. Usually Row Level Security is on with no read policy for the public role.';
-      const r = document.getElementById('view')?.dataset?.route;
-      if (r === 'explore' || r === 'map') go(r, { push: false });
+      if (currentRoute === 'explore' || currentRoute === 'map') go(currentRoute, { push: false });
     }
-  } catch (err) {
-    console.error("Supabase Pits Exception:", err);
-  }
+  } catch (err) { console.error("Supabase Pits Exception:", err); }
 }
 
-/* ---------- screens ---------- */
 const screens = {
   login: () => {
-    const signup = authUi.mode === 'signup';
-    const askPassword = authUi.step === 'password';
-    const switchText = signup
-      ? 'Already have an account? <button type="button" class="linkbtn" data-auth-mode="login">Log in</button>'
-      : "Don't have an account? <button type=\"button\" class=\"linkbtn\" data-auth-mode=\"signup\">Sign up</button>";
+    const signup = authUi.mode === 'signup', askPassword = authUi.step === 'password';
+    const switchText = signup ? 'Already have an account? <button type="button" class="linkbtn" data-auth-mode="login">Log in</button>' : "Don't have an account? <button type=\"button\" class=\"linkbtn\" data-auth-mode=\"signup\">Sign up</button>";
     return `
     <section class="card auth-card">
       ${eyebrow('BBQ PIT FINDER')}
@@ -504,49 +410,26 @@ const screens = {
           <input id="login-email" name="email" type="email" placeholder="example@email.com" autocomplete="email" value="${esc(authUi.email)}" required></span>
           ${askPassword ? '' : `<button class="go-btn" type="submit" aria-label="Continue">${icon('chev')}</button>`}
         </label>
-        ${askPassword ? `
-        <label class="field">
-          <span style="flex:1"><small class="accent" style="display:block">Password</small>
-          <input id="login-password" name="password" type="password" placeholder="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></span>
-          <button type="button" class="eye" data-toggle-pw aria-label="Show password" aria-pressed="false">${icon('eye-off')}</button>
-        </label>` : ''}
+        ${askPassword ? `<label class="field"><span style="flex:1"><small class="accent" style="display:block">Password</small><input id="login-password" name="password" type="password" placeholder="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></span><button type="button" class="eye" data-toggle-pw aria-label="Show password" aria-pressed="false">${icon('eye-off')}</button></label>` : ''}
         <p id="auth-msg" class="sub" role="status" aria-live="polite"></p>
-        ${askPassword ? `<p class="sub" style="text-align:center">${switchText}</p>
-        <button class="btn" type="submit">${signup ? 'Sign up' : 'Log In'}</button>` : ''}
+        ${askPassword ? `<p class="sub" style="text-align:center">${switchText}</p><button class="btn" type="submit">${signup ? 'Sign up' : 'Log In'}</button>` : `<p class="or">OR</p><button class="field social" data-auth="google"><strong style="color:#4285f4">G</strong>Continue with Google</button><button class="field social" data-auth="apple"><strong style="color:#fff"></strong>Continue with Apple</button><p class="sub">${switchText}</p>`}
       </form>
-      ${askPassword ? '' : `
-      <p class="or">OR</p>
-      <button class="field social" data-auth="google"><strong style="color:#4285f4">G</strong>Continue with Google</button>
-      <button class="field social" data-auth="apple"><strong style="color:#fff"></strong>Continue with Apple</button>
-      <p class="sub">${switchText}</p>`}
     </section>`;
   },
 
   explore: () => {
     const allIds = Object.keys(PITS);
     const q = state.searchQuery.toLowerCase().trim();
-    const filteredIds = q 
-      ? allIds.filter(id => {
-          const p = PITS[id];
-          const matchArea = p.area && p.area.toLowerCase().includes(q);
-          const matchFacility = p.fac && p.fac.some(f => f.toLowerCase().includes(q));
-          return matchArea || matchFacility;
-        })
-      : allIds.slice(0, 5);
-
+    const filteredIds = q ? allIds.filter(id => PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
     return `
     ${exploreHeader('list')}
     <div id="pit-list-container" style="display:flex; flex-direction:column; gap:16px;">
-      ${filteredIds.length > 0 
-        ? filteredIds.map(id => pitCard(id)).join('') 
-        : `<p class="card sub">No BBQ pits or facilities found matching "${esc(state.searchQuery)}"</p>`}
+      ${filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(state.searchQuery)}"</p>`}
     </div>
     ${notice('Confirm facilities, availability and final prices on the official site.')}`;
   },
 
-  map: () => `
-    ${exploreHeader('map')}
-    <div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits"></div>`,
+  map: () => `${exploreHeader('map')}<div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits"></div>`,
 
   pit: () => {
     const p = PITS[state.viewing] || Object.values(PITS)[0];
@@ -558,48 +441,23 @@ const screens = {
     <div class="gallery">${['d','a','c'].map(k => `<div class="photo photo-${k}"></div>`).join('')}</div>
     <div class="row between" style="align-items:flex-start">
       <p><span class="rating" style="font-size:1.1rem">★ ${p.rating}</span><br><span class="muted">${p.reviews} demo reviews</span></p>
-      <p style="text-align:right"><strong style="font-size:1.1rem">${p.price || PRICE}</strong><br><span class="muted">Sample price · confirm on official site</span></p>
+      <p style="text-align:right"><strong style="font-size:1.1rem">${p.price || PRICE}</strong><br><span class="muted">Sample price</span></p>
     </div>
-
-    <!-- LIVE WEATHER WIDGET -->
-    <section class="card stack" id="live-weather-card">
-      <h2>Live Weather Forecast</h2>
-      <p class="sub" id="weather-text">🔄 Fetching real-time weather data...</p>
-    </section>
-
-    <!-- LIVE CARPARK WIDGET -->
-    <section class="card stack" id="live-carpark-card">
-      <h2>Nearby Carpark Availability</h2>
-      <div class="sub" id="carpark-text">🔄 Fetching real-time carpark availability...</div>
-    </section>
-    
-    ${notice('Demo listing and illustrative photos. Reviews, amenities and sample price are not verified facts.')}
+    <section class="card stack"><h2>Live Weather Forecast</h2><p class="sub" id="weather-text">🔄 Fetching real-time weather data...</p></section>
+    <section class="card stack"><h2>Nearby Carpark Availability</h2><div class="sub" id="carpark-text">🔄 Fetching real-time carpark availability...</div></section>
+    ${notice('Demo listing and illustrative photos.')}
     <section class="stack"><h2>Plan your visit</h2>
       <ul class="facts">
         <li class="fact"><i>${icon('compass')}</i><span><small>Organisation</small>Managing agency: confirmation pending</span></li>
         <li class="fact"><i>${icon('clock')}</i><span><small>Operating times</small>Not confirmed. Check official booking times.</span></li>
-        <li class="fact"><i>${icon('pin')}</i><span><small>Address</small>${p.area}, Singapore. Confirm exact location before travelling.</span></li>
+        <li class="fact"><i>${icon('pin')}</i><span><small>Address</small>${p.area}, Singapore.</span></li>
         <li class="fact"><i>${icon('users')}</i><span><small>Nearest MRT</small>${p.nearestMRT || 'Station and walking route: not yet verified'}</span></li>
         <li class="fact"><i>${icon('access')}</i><span><small>Accessibility</small>${p.accessLong}</span></li>
       </ul>
     </section>
     <section class="stack"><div class="row between"><h2>Facilities</h2><span class="link">Attributes</span></div>
       <div class="fac-grid">${p.fac.map(f => `<div>${icon(FAC_ICON[f] ? FAC_ICON[f] : 'pin')}${f}</div>`).join('')}</div>
-      <p class="muted">Shelter and group capacity are unconfirmed. Check all facilities on the official listing.</p>
     </section>
-    <section class="stack"><h2>Nearby facilities</h2>
-      <p class="sub">Look for toilets, parking and drinking water on the park's official map.</p>
-      <p class="muted">Exact locations, distances and opening times are not confirmed in this demo.</p></section>
-    <section class="card warn stack"><h2>Before you light up</h2>
-      <p class="sub">Check the official rules for permitted cooking times, group size and charcoal disposal. Keep paths clear and leave the pit tidy.</p>
-      <a class="link" href="#pit">Read managing agency's rules ↗</a></section>
-    <section class="stack"><div class="row between"><h2 style="color:var(--accent-soft)">Reviews</h2><span class="link">${p.rating} · ${p.reviews} demo reviews</span></div>
-      <blockquote class="card"><p class="row"><span class="avatar" style="width:36px;height:36px">${icon('user')}</span><span><strong style="font-size:.85rem">Anonymous · demo review</strong><br><span class="rating">★★★★★</span></span></p>
-      <p class="sub" style="margin:10px 0">“A lovely spot to gather by the sea. We would bring a torch and check the facilities before heading down.”</p>
-      <p class="muted accent">Sample mentions: lights · toilets</p></blockquote>
-      <button class="btn" style="background:#1c1816;border:1px solid var(--line-soft)">See more reviews</button></section>
-    <p class="card warn muted" style="font-size:.78rem"><strong style="display:block;color:var(--text);font-size:.85rem">Official confirmation needed</strong>Source: demo data · official listing not linked. Last verified: not yet verified.</p>
-    <p class="muted">Opens the managing agency's official website. Booking, availability and final prices are handled there, not in this app.</p>
     <a class="btn" href="#pit" onclick="return false">Book now ${icon('out')}</a>`;
   },
 
@@ -615,10 +473,7 @@ const screens = {
       <span class="accent">${icon('target')}</span></div>
     <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
     <div class="row between"><h2>Recently Seen</h2><span class="link">${others.length} other pits</span></div>
-    ${others.slice(0,1).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}
-    <section class="card stack"><h2 style="font-size:1rem">Find the right fit for your gathering</h2>
-      <p class="muted" style="font-size:.85rem">Compare location, price, accessibility and facilities. No bookings are made in this app.</p></section>
-    ${notice('Confirm facilities, availability and final prices on the official site.')}`;
+    ${others.slice(0,1).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}`;
   },
 
   compare: () => {
@@ -626,21 +481,56 @@ const screens = {
     const a = PITS[state.comparing[0]] || PITS[keys[0]];
     const b = PITS[state.comparing[1]] || PITS[keys[1] || keys[0]];
     if (!a || !b) return `<div class="top"><button data-back>‹ Back</button></div><p class="card sub">Loading comparison...</p>`;
-    const section = (title, ic, left, right, note) => `
-      <details class="card" open><summary>${icon(ic)}${title}</summary>
-        <div class="duo"><p>${left}</p><p>${right}</p></div><p class="muted">${note}</p></details>`;
+    
+    const section = (title, ic, leftVal, rightVal, note) => `
+      <details class="card" open style="padding: 16px; margin-bottom: 14px;">
+        <summary style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; font-weight: 600; color: var(--head);">${icon(ic)}${title}</summary>
+        <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 12px;">
+          <div style="word-break: break-word;"><strong style="font-size:0.9rem; color:var(--text); display:block; margin-bottom:4px;">${a.area}</strong><div class="sub" style="color:var(--muted); line-height: 1.5;">${leftVal}</div></div>
+          <div style="word-break: break-word;"><strong style="font-size:0.9rem; color:var(--text); display:block; margin-bottom:4px;">${b.area}</strong><div class="sub" style="color:var(--muted); line-height: 1.5;">${rightVal}</div></div>
+        </div>
+        <p class="muted" style="border-top: 1px solid var(--line-soft); padding-top: 10px; margin-top: 8px; font-size: 0.78rem;">${note}</p>
+      </details>`;
+
     return `
-    <div class="top"><button data-back>‹ Back</button><button class="go-btn" data-go="search">Change pit</button></div>
-    <header><h1>Which fire fits?</h1><p class="sub">Two spots. One easier decision.</p></header>
-    <div class="duo">${[a,b].map(p => `<div><div class="photo photo-${p.photo}"></div>
-      <h2 style="font-size:1.2rem">${p.area}</h2>
-      <span class="rating">★ ${p.rating} · ${p.reviews} demo reviews</span><strong>${PRICE}</strong></div>`).join('')}</div>
-    ${section('Location','pin',a.area,b.area,'Nearest MRT: confirm before travelling.')}
-    ${section('Price','compass',PRICE,PRICE,'Final prices and time slots are set by the official booking site.')}
-    ${section('Accessibility','access',a.access,b.access,'Demo attributes. Step-free access and route conditions need confirmation.')}
-    ${section('Facilities','flame',a.fac.join('<br>')+'<br>Shelter: unconfirmed',b.fac.join('<br>')+'<br>Shelter',"Illustrative amenities; check the managing agency's listing.")}
-    <div class="duo"><button class="btn" data-pit="${a.id}">View ${a.area}</button><button class="btn" data-pit="${b.id}">View ${b.area}</button></div>
-    ${notice('Demo comparison. Agency, facilities and availability have not been independently verified.')}`;
+    <div class="top">
+      <button data-back>‹ Back</button>
+      <button class="btn sm" data-go="search" style="width:auto; padding:6px 12px; font-size:0.8rem;">Change pit</button>
+    </div>
+    <header style="margin-bottom: 16px;"><h1>Which fire fits?</h1><p class="sub">Two spots. One easier decision.</p></header>
+    
+    <div class="card" style="padding: 16px; margin-bottom: 14px;">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px;">
+        <div style="word-break: break-word;">
+          <div class="photo photo-${a.photo}" style="min-height:96px; margin-bottom:10px; border-radius: 12px;"></div>
+          <h2 style="font-size:1.1rem; line-height: 1.2; margin-bottom:4px; color:var(--head);">${a.area}</h2>
+          <span class="rating" style="display:block; margin-bottom:6px;">★ ${a.rating} · ${a.reviews} rev</span>
+          <strong style="font-size:0.9rem; color:var(--text);">${a.price || PRICE}</strong>
+        </div>
+        <div style="word-break: break-word;">
+          <div class="photo photo-${b.photo}" style="min-height:96px; margin-bottom:10px; border-radius: 12px;"></div>
+          <h2 style="font-size:1.1rem; line-height: 1.2; margin-bottom:4px; color:var(--head);">${b.area}</h2>
+          <span class="rating" style="display:block; margin-bottom:6px;">★ ${b.rating} · ${b.reviews} rev</span>
+          <strong style="font-size:0.9rem; color:var(--text);">${b.price || PRICE}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px;">
+      ${section('Location', 'pin', a.nearestMRT || 'Confirm route', b.nearestMRT || 'Confirm route', 'Nearest MRT and walking route.')}
+      ${section('Price', 'compass', a.price || PRICE, b.price || PRICE, 'Final prices and time slots are set by the official booking site.')}
+      ${section('Accessibility', 'access', a.access, b.access, 'Demo attributes. Step-free access needs confirmation.')}
+      ${section('Facilities', 'flame', a.fac.join(' · '), b.fac.join(' · '), 'Individual park amenities and facilities.')}
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0;">
+      <button class="btn sm" data-pit="${a.id}" style="width:100%;">View ${a.area}</button>
+      <button class="btn sm" data-pit="${b.id}" style="width:100%;">View ${b.area}</button>
+    </div>
+    
+    <div style="margin-bottom: 24px;">
+      ${notice('Demo comparison. Agency, facilities and availability have not been independently verified.')}
+    </div>`;
   },
 
   saved: () => `
@@ -648,68 +538,30 @@ const screens = {
     <h1>Your favourite fires.</h1>
     <p class="sub">Good spots, kept close for your next gathering.</p>
     ${search()}
-    <button class="card row between" data-go="recent"><span class="row">${icon('history','accent')}<strong>View recently seen</strong></span>${icon('chev')}</button>
     <div class="row between"><h2>Saved pits</h2><span class="link">${state.saved.size} places</span></div>
-    ${state.saved.size
-      ? [...state.saved].map(id => pitCard(id)).join('')
-      : '<p class="card sub">Nothing saved yet. Tap the bookmark on any pit to keep it here.</p>'}
+    ${state.saved.size ? [...state.saved].map(id => pitCard(id)).join('') : '<p class="card sub">Nothing saved yet. Tap the bookmark on any pit to keep it here.</p>'}
     ${notice("Your shortlist is not a reservation. Booking happens on the managing agency's official website.")}`,
-
-  recent: () => {
-    const keys = Object.keys(PITS);
-    const group = (label, ids) => `<div class="row between"><h2>${label}</h2><span class="link">${ids.length} viewed</span></div>
-      ${ids.map(id => pitCard(id, { cta: false })).map((html, i) => html.replace('<article class="card pit">', `<article class="card pit" data-pit="${ids[i]}" tabindex="0">`)).join('')}`;
-    return `
-    ${eyebrow('Recently Seen')}
-    <h1>Pick up where you left off.</h1>
-    ${group('Today', keys.slice(0, 2))}
-    <p class="muted">Only you can see your browsing history. Save a pit to keep it in your favourites.</p>
-    ${notice('History and review summaries. Pit information still needs official confirmation.')}`;
-  },
 
   profile: () => `
     ${eyebrow('BBQ PIT FINDER')}
     <h1>Your Page</h1>
-    <section class="card row"><span class="avatar">${esc(initials())}</span><div><strong style="font-size:1.2rem">${esc(displayName())}</strong><br><span class="muted">${esc(session?.user?.email || '')}</span><br><button class="link" data-edit-name>✎ Edit Name</button></div></section>
-    <h2>Account Settings</h2>
-    <ul class="card list">
-      <li>${icon('user')}<span>Personal information<small>Name and email address</small></span><span class="go">${icon('chev')}</span></li>
-      <li>${icon('shield')}<span>Privacy &amp; security<small>Manage your account preferences</small></span><span class="go">${icon('chev')}</span></li>
-    </ul>
-    <h2>Notifications</h2>
-    <ul class="card list">
-      <li>${icon('bookmark')}<label for="n1">Saved pit updates<small>When information about your saved pits changes</small></label><input id="n1" class="switch" type="checkbox" checked></li>
-      <li>${icon('flame')}<label for="n2">Tips for your next BBQ<small>Occasional outdoor inspiration</small></label><input id="n2" class="switch" type="checkbox"></li>
-    </ul>
+    <section class="card row"><span class="avatar">${esc(initials())}</span><div><strong style="font-size:1.2rem">${esc(displayName())}</strong><br><span class="muted">${esc(session?.user?.email || '')}</span></div></section>
     <h2>General Settings</h2>
     <ul class="card list">
       <li>${icon('compass')}<span>Language<small>English</small></span><span class="go">${icon('chev')}</span></li>
-      <li>${icon('info')}<span>Help &amp; feedback</span><span class="go">${icon('chev')}</span></li>
-      <li>${icon('info')}<span>About BBQ Pit Finder<small>Demo version · Terms &amp; privacy</small></span><span class="go">${icon('chev')}</span></li>
+      <li>${icon('info')}<span>About BBQ Pit Finder<small>Demo version</small></span><span class="go">${icon('chev')}</span></li>
     </ul>
-    <button class="btn" data-signout style="background:#1c1816;border:1px solid var(--line-soft)">Sign out</button>
-    <p class="muted row">${icon('out')}We help you find your fire. All bookings and payments stay on the managing agency's official website.</p>`,
+    <button class="btn" data-signout style="background:#1c1816;border:1px solid var(--line-soft)">Sign out</button>`
 };
 
 const TAB = { explore:'explore', map:'explore', pit:'explore', compare:'explore', search:'explore', saved:'saved', recent:'saved', profile:'profile' };
 
-/* ---------- Local BBQ Pit Search Handler ---------- */
 function renderPitResults(matches, message) {
   const box = document.getElementById('results');
   if (!box) return;
   box.hidden = false;
-  if (message) {
-    box.innerHTML = `<li class="msg">${message}</li>`;
-    return;
-  }
-  box.innerHTML = matches.slice(0, 6).map(pit => `
-    <li>
-      <button type="button" data-pit="${pit.id}">
-        <strong>${pit.area}</strong>
-        <small>Facilities: ${pit.fac.join(', ')}</small>
-      </button>
-    </li>
-  `).join('');
+  if (message) { box.innerHTML = `<li class="msg">${message}</li>`; return; }
+  box.innerHTML = matches.slice(0, 6).map(pit => `<li><button type="button" data-pit="${pit.id}"><strong>${pit.area}</strong><small>Facilities: ${pit.fac.join(', ')}</small></button></li>`).join('');
 }
 
 let searchTimer;
@@ -718,122 +570,45 @@ document.addEventListener('input', e => {
   clearTimeout(searchTimer);
   const q = e.target.value.trim().toLowerCase();
   state.searchQuery = q;
-
   searchTimer = setTimeout(() => {
-    // Filter local PITS dataset for dropdown suggestions
-    const matches = Object.values(PITS).filter(pit => {
-      const matchArea = pit.area && pit.area.toLowerCase().includes(q);
-      const matchFacility = pit.fac && pit.fac.some(f => f.toLowerCase().includes(q));
-      return matchArea || matchFacility;
-    });
-
+    const matches = Object.values(PITS).filter(pit => pit.area.toLowerCase().includes(q) || pit.fac.some(f => f.toLowerCase().includes(q)));
     renderPitResults(matches, matches.length ? '' : 'No matching BBQ pits or facilities found.');
-
-    // Update view sections based on active route
     const currentRoute = document.getElementById('view')?.dataset?.route;
     if (currentRoute === 'explore') {
       const listContainer = document.getElementById('pit-list-container');
       if (listContainer) {
         const allIds = Object.keys(PITS);
-        const filteredIds = q 
-          ? allIds.filter(id => {
-              const p = PITS[id];
-              const matchArea = p.area && p.area.toLowerCase().includes(q);
-              const matchFacility = p.fac && p.fac.some(f => f.toLowerCase().includes(q));
-              return matchArea || matchFacility;
-            })
-          : allIds.slice(0, 5);
-
-        listContainer.innerHTML = filteredIds.length > 0 
-          ? filteredIds.map(id => pitCard(id)).join('') 
-          : `<p class="card sub">No BBQ pits or facilities found matching "${esc(q)}"</p>`;
+        const filteredIds = q ? allIds.filter(id => PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
+        listContainer.innerHTML = filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(q)}"</p>`;
       }
-    } else if (currentRoute === 'map') {
-      updateMapMarkers();
     }
   }, 200);
 });
 
 let map = null;
-let mapMarkers = {};
-
-function destroyMap() { 
-  if (map) { 
-    map.remove(); 
-    map = null; 
-  } 
-}
+function destroyMap() { if (map) { map.remove(); map = null; } }
 
 function initMap() {
   const el = document.getElementById('onemap');
-  if (!el) return;
-  if (typeof L === 'undefined') {
-    el.innerHTML = '<p class="card sub" style="margin:14px">Map library failed to load.</p>';
-    return;
-  }
-
+  if (!el || typeof L === 'undefined') return;
   map = L.map(el, { zoomControl: false }).setView([1.3521, 103.8198], 11);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-  L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', {
-    detectRetina: true, minZoom: 9, maxZoom: 19,
-    attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>'
-  }).addTo(map);
-
-  updateMapMarkers();
-}
-
-function updateMapMarkers() {
-  if (!map) return;
-
-  map.eachLayer(layer => {
-    if (layer instanceof L.CircleMarker) {
-      map.removeLayer(layer);
-    }
-  });
-
-  const q = state.searchQuery.toLowerCase().trim();
-  const allIds = Object.keys(PITS);
-  
-  const filteredIds = q 
-    ? allIds.filter(id => {
-        const p = PITS[id];
-        const matchArea = p.area && p.area.toLowerCase().includes(q);
-        const matchFacility = p.fac && p.fac.some(f => f.toLowerCase().includes(q));
-        return matchArea || matchFacility;
-      })
-    : allIds;
+  L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', { detectRetina: true, minZoom: 9, maxZoom: 19, attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>' }).addTo(map);
 
   const bounds = [];
-  mapMarkers = {};
-
-  filteredIds.forEach(id => {
-    const p = PITS[id];
-    if (!p || !p.coords || p.coords.length !== 2) return;
-    const latLng = [p.coords[0], p.coords[1]];
-    bounds.push(latLng);
-
-    const marker = L.circleMarker(latLng, {
-      radius: 7,
-      fillColor: '#ff6a1a',
-      color: '#ffffff',
-      weight: 1.5,
-      opacity: 1,
-      fillOpacity: 0.9
-    }).addTo(map);
-
-    marker.bindPopup(`<strong>${p.area}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
-    mapMarkers[id] = marker;
+  const q = state.searchQuery.toLowerCase().trim();
+  Object.values(PITS).forEach(p => {
+    if (q && !p.area.toLowerCase().includes(q) && !p.fac.some(f => f.toLowerCase().includes(q))) return;
+    if (!p.coords) return;
+    bounds.push(p.coords);
+    L.circleMarker(p.coords, { radius: 7, fillColor: '#ff6a1a', color: '#ffffff', weight: 1.5, opacity: 1, fillOpacity: 0.9 })
+      .addTo(map)
+      .bindPopup(`<strong>${p.area}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
   });
-
-  if (bounds.length > 0) {
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-  }
-
+  if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
   setTimeout(() => map && map.invalidateSize(), 150);
 }
 
-/* ---------- Supabase auth ---------- */
 let session = null;
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const displayName = () => session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Guest';
@@ -855,33 +630,16 @@ document.addEventListener('submit', async e => {
   const email = document.getElementById('login-email').value.trim();
   if (!/^\S+@\S+\.\S+$/.test(email)) return authMsg('Enter a valid email address.', true);
   authUi.email = email;
-
   if (authUi.step === 'email') { authUi.step = 'password'; return rerenderLogin(); }
-
   const password = document.getElementById('login-password').value;
-  const signup = authUi.mode === 'signup';
   if (!password) return authMsg('Enter your password.', true);
-
-  const buttons = e.target.querySelectorAll('button'); buttons.forEach(b => b.disabled = true);
-  authMsg(signup ? 'Creating your account…' : 'Logging in…');
-
-  if (signup) {
-    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
-    buttons.forEach(b => b.disabled = false);
-    if (error) authMsg(error.message, true);
-    else if (!data.session) authMsg('Account created. Check your email to confirm it, then log in.');
-  } else {
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    buttons.forEach(b => b.disabled = false);
-    if (error) authMsg(error.status === 400 ? 'Incorrect email or password.' : error.message, true);
-  }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) authMsg(error.status === 400 ? 'Incorrect email or password.' : error.message, true);
 });
 
 document.addEventListener('click', async e => {
   const oauth = e.target.closest('[data-auth]');
-  if (oauth) {
-    await sb.auth.signInWithOAuth({ provider: oauth.dataset.auth, options: { redirectTo: location.origin + location.pathname } });
-  }
+  if (oauth) await sb.auth.signInWithOAuth({ provider: oauth.dataset.auth });
   const modeBtn = e.target.closest('[data-auth-mode]');
   if (modeBtn) { authUi.mode = modeBtn.dataset.authMode; rerenderLogin(); }
   const eye = e.target.closest('[data-toggle-pw]');
@@ -894,7 +652,6 @@ document.addEventListener('click', async e => {
   if (e.target.closest('[data-signout]')) await sb.auth.signOut();
 });
 
-/* ---------- router ---------- */
 const view = $('#view'), nav = $('#nav');
 const history = [];
 
@@ -913,10 +670,7 @@ function go(route, { push = true } = {}) {
   view.dataset.route = route;
   view.focus({ preventScroll: true });
   if (route === 'map') requestAnimationFrame(initMap);
-  if (route === 'pit') {
-    loadPitWeather();
-    loadPitCarparks();
-  }
+  if (route === 'pit') { loadPitWeather(); loadPitCarparks(); }
 }
 
 function back() {
@@ -928,8 +682,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-go],[data-save],[data-pit],[data-compare],[data-back]');
   if (!t) return;
   if (t.dataset.save) {
-    const id = t.dataset.save;
-    state.saved.has(id) ? state.saved.delete(id) : state.saved.add(id);
+    state.saved.has(t.dataset.save) ? state.saved.delete(t.dataset.save) : state.saved.add(t.dataset.save);
     const top = view.scrollTop; go(view.dataset.route, { push: false }); view.scrollTop = top;
   } else if (t.dataset.pit) {
     state.viewing = t.dataset.pit; go('pit');
@@ -948,14 +701,12 @@ if (!sb) {
   authMsg('Sign-in could not load.', true);
 } else {
   loadSupabasePits();
-
   sb.auth.onAuthStateChange((event, s) => {
     session = s;
     const route = view.dataset.route;
     if (event === 'INITIAL_SESSION') go(s ? 'explore' : 'login', { push: false });
     else if (event === 'SIGNED_IN' && route === 'login') go('explore');
     else if (event === 'SIGNED_OUT') { history.length = 0; Object.assign(authUi, { step: 'email', mode: 'login', email: '' }); go('login'); }
-    else if (event === 'USER_UPDATED' && route) go(route, { push: false });
   });
 }
 </script>

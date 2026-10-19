@@ -279,13 +279,51 @@ const screens = {
     const keys = Object.keys(PITS);
     const a = PITS[state.comparing[0]] || PITS[keys[0]];
     const b = PITS[state.comparing[1]] || PITS[keys[1] || keys[0]];
+    if (!a || !b) return `<div class="top"><button data-back>‹ Back</button></div><p class="card sub">Loading comparison...</p>`;
+    
+    const section = (title, ic, leftVal, rightVal, note) => `
+      <details class="card" open style="padding: 14px; margin-bottom: 12px;">
+        <summary style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">${icon(ic)}${title}</summary>
+        <div class="duo">
+          <div><strong style="font-size:0.9rem">${a.area}</strong><span class="sub">${leftVal}</span></div>
+          <div><strong style="font-size:0.9rem">${b.area}</strong><span class="sub">${rightVal}</span></div>
+        </div>
+        <p class="muted" style="margin-top: 12px; border-top: 1px solid var(--line-soft); padding-top: 8px;">${note}</p>
+      </details>`;
+
     return `
     <div class="top"><button data-back>‹ Back</button><button class="go-btn" data-go="search">Change pit</button></div>
     <header><h1>Which fire fits?</h1><p class="sub">Two spots. One easier decision.</p></header>
-    <div class="duo">${[a, b].map(p => `<div><div class="photo photo-d"></div>
-      <h2 style="font-size:1.2rem">${p.area}</h2>
-      <span class="rating">★ ${p.rating} · ${p.reviews} reviews</span><strong>${PRICE}</strong></div>`).join('')}</div>
-    <div class="duo"><button class="btn" data-pit="${a.id}">View ${a.area}</button><button class="btn" data-pit="${b.id}">View ${b.area}</button></div>`;
+    
+    <div class="card" style="margin-bottom: 12px;">
+      <div class="duo">
+        <div>
+          <div class="photo photo-${a.photo}" style="min-height:96px; margin-bottom:8px;"></div>
+          <h2 style="font-size:1.1rem; line-height: 1.2;">${a.area}</h2>
+          <span class="rating">★ ${a.rating} · ${a.reviews} rev</span>
+          <strong style="margin-top:4px;">${a.price || PRICE}</strong>
+        </div>
+        <div>
+          <div class="photo photo-${b.photo}" style="min-height:96px; margin-bottom:8px;"></div>
+          <h2 style="font-size:1.1rem; line-height: 1.2;">${b.area}</h2>
+          <span class="rating">★ ${b.rating} · ${b.reviews} rev</span>
+          <strong style="margin-top:4px;">${b.price || PRICE}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      ${section('Location', 'pin', a.nearestMRT || 'Confirm route', b.nearestMRT || 'Confirm route', 'Nearest MRT and walking route.')}
+      ${section('Price', 'compass', a.price || PRICE, b.price || PRICE, 'Final prices and time slots are set by the official booking site.')}
+      ${section('Accessibility', 'access', a.access, b.access, 'Demo attributes. Step-free access needs confirmation.')}
+      ${section('Facilities', 'flame', a.fac.join(', '), b.fac.join(', '), 'Illustrative amenities; check managing agency listing.')}
+    </div>
+
+    <div class="duo" style="margin: 16px 0 12px 0;">
+      <button class="btn sm" data-pit="${a.id}">View ${a.area}</button>
+      <button class="btn sm" data-pit="${b.id}">View ${b.area}</button>
+    </div>
+    ${notice('Demo comparison. Agency, facilities and availability have not been independently verified.')}`;
   },
 
   saved: () => `

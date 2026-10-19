@@ -509,3 +509,24 @@
     transform: translateX(-50%);
   }
 }
+
+.card details {
+  margin-bottom: 12px;
+}
+.card details summary {
+  cursor: pointer;
+  padding-bottom: 8px;
+  font-weight: 600;
+}
+.duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+  margin-top: 10px;
+}
+.duo > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
