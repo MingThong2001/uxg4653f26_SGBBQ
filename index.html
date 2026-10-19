@@ -83,12 +83,12 @@ svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;
 .leaflet-popup-content .link{cursor:pointer}
 .pit-marker{background:none;border:0}
 
-.results{margin-top:-8px;border:1px solid var(--line);border-radius:14px;background:#14100e;overflow-y:auto;max-height:260px;z-index:100;position:relative}
-.results button{display:block;width:100%;padding:12px 14px;border-top:1px solid var(--line-soft);font-size:.85rem}
+.results{margin-top:-8px;border:1px solid var(--line);border-radius:14px;background:#14100e;overflow-y:auto;min-height:180px;max-height:340px;z-index:100;position:relative}
+.results button{display:block;width:100%;padding:14px 16px;border-top:1px solid var(--line-soft);font-size:.9rem}
 .results button:first-child{border-top:0}
 .results button:hover,.results button:focus-visible{background:#2a1409}
-.results small{display:block;color:var(--muted);font-size:.72rem}
-.results .msg{padding:12px 14px;color:var(--muted);font-size:.82rem}
+.results small{display:block;color:var(--muted);font-size:.78rem;margin-top:2px}
+.results .msg{padding:14px 16px;color:var(--muted);font-size:.88rem}
 
 /* details */
 .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -197,6 +197,7 @@ const state = {
   baseline: null,
   searchQuery: '',
   savedSearchQuery: '', 
+  listMode: 'list',
 };
 
 const MRT_STATIONS = [
@@ -283,7 +284,7 @@ function pitCard(id, { cta = true, label = '' } = {}) {
   </article>`;
 }
 
-const exploreHeader = mode => `
+const exploreHeader = () => `
   ${eyebrow('BBQ PIT FINDER')}
   <h1>Find your fire.</h1>
   ${search().replace('<input ','<input id="place-search" autocomplete="off" value="' + esc(state.searchQuery) + '" ')}
@@ -295,8 +296,8 @@ const exploreHeader = mode => `
   <div class="row between">
     <span class="row" style="font-weight:600;font-size:.9rem">${icon('compass')}Singapore Parks (${Object.keys(PITS).length} Pits)</span>
     <div class="toggle" role="group" aria-label="View mode">
-      <button data-go="map" aria-pressed="${mode==='map'}">${icon('pin')}Map</button>
-      <button data-go="explore" aria-pressed="${mode==='list'}">${icon('search')}List</button>
+      <button data-mode="map" aria-pressed="${state.listMode === 'map'}">${icon('pin')}Map</button>
+      <button data-mode="list" aria-pressed="${state.listMode === 'list'}">${icon('search')}List</button>
     </div>
   </div>`;
 
@@ -418,19 +419,22 @@ const screens = {
     </section>`;
   },
 
-  explore: () => {
-    const allIds = Object.keys(PITS);
-    const q = state.searchQuery.toLowerCase().trim();
-    const filteredIds = q ? allIds.filter(id => PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
-    return `
-    ${exploreHeader('list')}
-    <div id="pit-list-container" style="display:flex; flex-direction:column; gap:16px;">
-      ${filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(state.searchQuery)}"</p>`}
+  explore: () => `
+    ${exploreHeader()}
+    <div id="pit-list-container" style="display:${state.listMode === 'list' ? 'flex' : 'none'}; flex-direction:column; gap:16px;">
+      ${(() => {
+        const allIds = Object.keys(PITS);
+        const q = state.searchQuery.toLowerCase().trim();
+        const filteredIds = q ? allIds.filter(id => PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
+        return filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(state.searchQuery)}"</p>`;
+      })()}
     </div>
-    ${notice('Confirm facilities, availability and final prices on the official site.')}`;
-  },
+    <div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits" style="display:${state.listMode === 'map' ? 'block' : 'none'};"></div>
+    ${state.listMode === 'list' ? notice('Confirm facilities, availability and final prices on the official site.') : ''}`,
 
-  map: () => `${exploreHeader('map')}<div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits"></div>`,
+  map: () => `
+    ${exploreHeader()}
+    <div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits" style="display:block;"></div>`,
 
   pit: () => {
     const p = PITS[state.viewing] || Object.values(PITS)[0];
@@ -574,9 +578,14 @@ const TAB = { explore:'explore', map:'explore', pit:'explore', compare:'explore'
 function renderPitResults(matches, message) {
   const box = document.getElementById('results');
   if (!box) return;
+  if (!state.searchQuery) {
+    box.hidden = true;
+    box.innerHTML = '';
+    return;
+  }
   box.hidden = false;
   if (message) { box.innerHTML = `<li class="msg">${message}</li>`; return; }
-  box.innerHTML = matches.slice(0, 6).map(pit => `<li><button type="button" data-pit="${pit.id}"><strong>${pit.area}</strong><small>Facilities: ${pit.fac.join(', ')}</small></button></li>`).join('');
+  box.innerHTML = matches.slice(0, 8).map(pit => `<li><button type="button" data-pit="${pit.id}"><strong>${pit.area}</strong><small>Facilities: ${pit.fac.join(', ')}</small></button></li>`).join('');
 }
 
 let searchTimer;
@@ -585,7 +594,32 @@ document.addEventListener('input', e => {
   clearTimeout(searchTimer);
   const q = e.target.value.trim().toLowerCase();
   state.searchQuery = q;
+
+  if (!q) {
+    const box = document.getElementById('results');
+    if (box) {
+      box.hidden = true;
+      box.innerHTML = '';
+    }
+  }
+
   searchTimer = setTimeout(() => {
+    if (!q) {
+      const currentRoute = document.getElementById('view')?.dataset?.route;
+      if (currentRoute === 'explore') {
+        const listContainer = document.getElementById('pit-list-container');
+        if (listContainer) {
+          const allIds = Object.keys(PITS);
+          const filteredIds = allIds.slice(0, 5);
+          listContainer.innerHTML = filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : '';
+        }
+      }
+      if (currentRoute === 'map' || (currentRoute === 'explore' && state.listMode === 'map')) {
+        initMap();
+      }
+      return;
+    }
+
     const matches = Object.values(PITS).filter(pit => pit.area.toLowerCase().includes(q) || pit.fac.some(f => f.toLowerCase().includes(q)));
     renderPitResults(matches, matches.length ? '' : 'No matching BBQ pits or facilities found.');
     const currentRoute = document.getElementById('view')?.dataset?.route;
@@ -596,6 +630,9 @@ document.addEventListener('input', e => {
         const filteredIds = q ? allIds.filter(id => PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
         listContainer.innerHTML = filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(q)}"</p>`;
       }
+    }
+    if (currentRoute === 'map' || (currentRoute === 'explore' && state.listMode === 'map')) {
+      initMap();
     }
   }, 200);
 });
@@ -633,9 +670,19 @@ function destroyMap() { if (map) { map.remove(); map = null; } }
 function initMap() {
   const el = document.getElementById('onemap');
   if (!el || typeof L === 'undefined') return;
-  map = L.map(el, { zoomControl: false }).setView([1.3521, 103.8198], 11);
-  L.control.zoom({ position: 'bottomright' }).addTo(map);
-  L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', { detectRetina: true, minZoom: 9, maxZoom: 19, attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>' }).addTo(map);
+  
+  if (!map) {
+    map = L.map(el, { zoomControl: false }).setView([1.3521, 103.8198], 11);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', { detectRetina: true, minZoom: 9, maxZoom: 19, attribution: '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a>' }).addTo(map);
+  }
+
+  // Clear existing markers
+  map.eachLayer(layer => {
+    if (layer instanceof L.CircleMarker) {
+      map.removeLayer(layer);
+    }
+  });
 
   const bounds = [];
   const q = state.searchQuery.toLowerCase().trim();
@@ -700,7 +747,7 @@ const history = [];
 function go(route, { push = true } = {}) {
   if (!screens[route] || (!session && route !== 'login')) route = 'login';
   if (push) history.push(route);
-  destroyMap();
+  if (route !== 'explore' && route !== 'map') destroyMap();
   view.innerHTML = screens[route]();
   view.className = route === 'login' ? 'auth' : '';
   view.scrollTop = 0;
@@ -711,7 +758,7 @@ function go(route, { push = true } = {}) {
   });
   view.dataset.route = route;
   view.focus({ preventScroll: true });
-  if (route === 'map') requestAnimationFrame(initMap);
+  if (route === 'map' || (route === 'explore' && state.listMode === 'map')) requestAnimationFrame(initMap);
   if (route === 'pit') { loadPitWeather(); loadPitCarparks(); }
 }
 
@@ -721,6 +768,22 @@ function back() {
 }
 
 document.addEventListener('click', e => {
+  const modeBtn = e.target.closest('[data-mode]');
+  if (modeBtn) {
+    state.listMode = modeBtn.dataset.mode;
+    const listContainer = document.getElementById('pit-list-container');
+    const mapContainer = document.getElementById('onemap');
+    if (listContainer && mapContainer) {
+      listContainer.style.display = state.listMode === 'list' ? 'flex' : 'none';
+      mapContainer.style.display = state.listMode === 'map' ? 'block' : 'none';
+      document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.listMode));
+      if (state.listMode === 'map') setTimeout(initMap, 50);
+    } else {
+      go('explore', { push: false });
+    }
+    return;
+  }
+
   const t = e.target.closest('[data-go],[data-save],[data-pit],[data-compare],[data-back]');
   if (!t) return;
   if (t.dataset.save) {
@@ -743,8 +806,16 @@ if (!sb) {
   authMsg('Sign-in could not load.', true);
 } else {
   loadSupabasePits();
+  sb
+    .channel('public:pits')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pits_table' }, payload => {
+      console.log('Realtime DB change received:', payload);
+      loadSupabasePits();
+    })
+    .subscribe();
+
   sb.auth.onAuthStateChange((event, s) => {
-    session = s;
+        session = s;
     const route = view.dataset.route;
     if (event === 'INITIAL_SESSION') go(s ? 'explore' : 'login', { push: false });
     else if (event === 'SIGNED_IN' && route === 'login') go('explore');
