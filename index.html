@@ -722,8 +722,18 @@ document.addEventListener('submit', async e => {
   if (authUi.step === 'email') { authUi.step = 'password'; return rerenderLogin(); }
   const password = document.getElementById('login-password').value;
   if (!password) return authMsg('Enter your password.', true);
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) authMsg(error.status === 400 ? 'Incorrect email or password.' : error.message, true);
+
+  if (authUi.mode === 'signup') {
+    const { error } = await sb.auth.signUp({ email, password });
+    if (error) {
+      authMsg(error.message, true);
+    } else {
+      authMsg('Account created! Please check your email if confirmation is required, or log in.');
+    }
+  } else {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) authMsg(error.status === 400 ? 'Incorrect email or password.' : error.message, true);
+  }
 });
 
 document.addEventListener('click', async e => {
