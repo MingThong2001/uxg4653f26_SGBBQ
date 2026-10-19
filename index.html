@@ -469,19 +469,28 @@ const screens = {
 
   search: () => {
     const base = PITS[state.baseline] || Object.values(PITS)[0];
-    const recentIds = state.recent.length > 0 
+    const q = state.searchQuery.toLowerCase().trim();
+    const pool = state.recent.length > 0 
       ? state.recent.filter(id => id !== state.baseline) 
       : Object.keys(PITS).filter(id => id !== state.baseline);
+    
+    const filteredIds = q 
+      ? pool.filter(id => {
+          const p = PITS[id];
+          return p && (p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
+        })
+      : pool;
+
     return `
     ${eyebrow('Recently Seen')}
     <h1>Search and compare</h1>
-    ${search()}
+    <label class="field">${icon('search')}<input type="search" id="compare-search-input" placeholder="Search by area or facility..." value="${esc(state.searchQuery)}" aria-label="Search by area or facility"></label>
     <div class="card comparing"><div class="photo photo-${base?.photo || 'd'}"></div>
       <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.area || ''}</strong><br><span class="muted">${PRICE} · sample</span></p>
       <span class="accent">${icon('target')}</span></div>
     <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
-    <div class="row between"><h2>Recently Seen</h2><span class="link">${recentIds.length} other pits</span></div>
-    ${recentIds.slice(0, 3).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('')}`;
+    <div class="row between"><h2>Recently Seen</h2><span class="link">${filteredIds.length} other pits</span></div>
+    ${filteredIds.length ? filteredIds.slice(0, 3).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('') : '<p class="card sub">No matching pits found.</p>'}`;
   },
 
   compare: () => {
@@ -593,6 +602,19 @@ function renderPitResults(matches, message) {
 
 let searchTimer;
 document.addEventListener('input', e => {
+  if (e.target.id === 'compare-search-input') {
+    state.searchQuery = e.target.value;
+    const top = view.scrollTop;
+    go('search', { push: false });
+    view.scrollTop = top;
+    const newlyRenderedInput = document.getElementById('compare-search-input');
+    if (newlyRenderedInput) {
+      newlyRenderedInput.focus();
+      newlyRenderedInput.selectionStart = newlyRenderedInput.selectionEnd = newlyRenderedInput.value.length;
+    }
+    return;
+  }
+
   if (e.target.id !== 'place-search') return;
   clearTimeout(searchTimer);
   const q = e.target.value.trim().toLowerCase();
