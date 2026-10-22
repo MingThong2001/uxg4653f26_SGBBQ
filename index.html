@@ -570,7 +570,7 @@ const screens = {
     <section class="stack"><div class="row between"><h2>Facilities</h2><span class="link">Attributes</span></div>
       <div class="fac-grid">${p.fac.map(f => `<div>${icon(FAC_ICON[f] ? FAC_ICON[f] : 'pin')}${f}</div>`).join('')}</div>
     </section>
-    <a class="btn" href="#pit" onclick="return false">Book now ${icon('out')}</a>`;
+    <a class="btn" href="${p.agency === "People's Association" ? 'https://www.onepa.gov.sg/facilities/availability?facilityId=BishanEastZone6RN_BBQPIT(RC)' : 'https://www.nparks.gov.sg/visit/activities/barbecuing'}" target="_blank" rel="noopener noreferrer">Book now ${icon('out')}</a>`;
   },
 
   search: () => {
