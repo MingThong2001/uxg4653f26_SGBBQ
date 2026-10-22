@@ -291,10 +291,6 @@ const exploreHeader = () => `
   <h1>Find your fire.</h1>
   ${search().replace('<input ','<input id="place-search" autocomplete="off" value="' + esc(state.searchQuery) + '" ')}
   <ul class="results" id="results" aria-live="polite" hidden></ul>
-  <div class="filters">
-    <button class="field">${icon('cal')}<span>Date and time</span></button>
-    <button class="field">${icon('users')}<span>Number of guests</span></button>
-  </div>
   <div class="row between">
     <span class="row" style="font-weight:600;font-size:.9rem">${icon('compass')}Singapore Parks (${Object.keys(PITS).length} Pits)</span>
     <div class="toggle" role="group" aria-label="View mode">
@@ -427,8 +423,19 @@ const sb = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const hashStr = s => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 const pickBy = (arr, h, salt) => arr[((h ^ Math.imul(salt, 2654435761)) >>> 0) % arr.length];
+const ACCESS_PROFILES = [
+  ['Step-free paved access', 'Step-free paved path from the carpark to the pit area. Suitable for wheelchairs and prams.'],
+  ['Wheelchair-accessible path', 'Wide, level path to the pit area with a gentle ramp at the entrance. Wheelchair-friendly toilets are about 50 m away.'],
+  ['Paved access from carpark', 'Short paved walk of about 80 m from the nearest carpark. No steps along the main route.'],
+  ['Sheltered paved walkway', 'Sheltered walkway leads to the pit with no steps. Benches along the way for rest stops.'],
+  ['Ramp access, smooth surface', 'Smooth ramp access from the park entrance. The pit area is level with a firm, non-slip surface.'],
+  ['Step-free, accessible toilet nearby', 'Step-free route from the drop-off point. An accessible toilet is within 100 m of the pit.'],
+  ['Level path with tactile guidance', 'Level paved path with tactile paving at key crossings. Handrails along the slope near the entrance.'],
+  ['Paved path, a few gentle slopes', 'Mostly paved path with a few gentle slopes. Assistance may help for manual wheelchairs on the incline.']
+];
 function genPitData(id, area) {
   const h = hashStr(id + '|' + area);
+  const acc = pickBy(ACCESS_PROFILES, h, 4);
   const fac = ['Toilets', 'Water'];
   if (h & 1) fac.push('Lights');
   if (h & 2) fac.push('Parking');
@@ -438,8 +445,8 @@ function genPitData(id, area) {
     price: pickBy(['$10/pit · 2hrs', '$15/pit · 2hrs', '$20/pit · 2hrs', '$25/pit · 3hrs'], h, 1),
     agency: pickBy(['National Parks Board (NParks)', 'National Parks Board (NParks)', 'National Parks Board (NParks)', "People's Association"], h, 2),
     hours: pickBy(['7:00 AM – 10:00 PM daily', '8:00 AM – 10:30 PM daily', '9:00 AM – 10:00 PM daily'], h, 3),
-    access: pickBy(['Step-free paved access', 'Wheelchair-accessible path', 'Paved access from carpark', 'Sheltered paved walkway'], h, 4),
-    accessLong: pickBy(['Step-free paved path from the carpark to the pit area. Suitable for wheelchairs and prams.', 'Paved approach with a gentle ramp near the entrance, a short walk from the nearest carpark.', 'Level, paved pathway throughout. Accessible toilets are available nearby.', 'Sheltered walkway leading to the pit with no steps along the main route.'], h, 5),
+    access: acc[0],
+    accessLong: acc[1],
     fac
   };
 }
@@ -475,8 +482,8 @@ async function loadSupabasePits() {
           area: pit.area || `Pit ${pitId}`,
           rating: pit.rating || gen.rating,
           reviews: pit.reviews || gen.reviews,
-          access: pit.access || gen.access,
-          accessLong: pit.access_long || gen.accessLong,
+          access: gen.access,
+          accessLong: gen.accessLong,
           fac: parsedFacilities,
           photo: ['a','c','d'].includes(pit.photo_key) ? pit.photo_key : ['d','a','c'][index % 3],
           price: pit.price || gen.price,
@@ -515,7 +522,7 @@ const screens = {
         </label>
         ${askPassword ? `<label class="field"><span style="flex:1"><small class="accent" style="display:block">Password</small><input id="login-password" name="password" type="password" placeholder="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></span><button type="button" class="eye" data-toggle-pw aria-label="Show password" aria-pressed="false">${icon('eye-off')}</button></label>` : ''}
         <p id="auth-msg" class="sub" role="status" aria-live="polite"></p>
-        ${askPassword ? `<p class="sub" style="text-align:center">${switchText}</p><button class="btn" type="submit">${signup ? 'Sign up' : 'Log In'}</button>` : `<p class="or">OR</p><button class="field social" data-auth="google"><strong style="color:#4285f4">G</strong>Continue with Google</button><button class="field social" data-auth="apple"><strong style="color:#fff"></strong>Continue with Apple</button><p class="sub">${switchText}</p>`}
+        ${askPassword ? `<p class="sub" style="text-align:center">${switchText}</p><button class="btn" type="submit">${signup ? 'Sign up' : 'Log In'}</button>` : `<p class="or">OR</p><button class="field social" data-auth="google"><strong style="color:#4285f4">G</strong>Continue with Google</button><p class="sub">${switchText}</p>`}
       </form>
     </section>`;
   },
@@ -588,6 +595,7 @@ const screens = {
       <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.area || ''}</strong><br><span class="muted">${base?.price || PRICE}</span></p>
       <span class="accent">${icon('target')}</span></div>
     <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
+    ${addPitSection()}
     <div class="row between"><h2>Recently Seen</h2><span class="link">${filteredIds.length} other pits</span></div>
     ${filteredIds.length ? filteredIds.slice(0, 3).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('') : '<p class="card sub">No matching pits found.</p>'}`;
   },
@@ -941,6 +949,41 @@ document.addEventListener('click', e => {
     if (t.dataset.go === 'search') state.baseline = state.viewing;
     go(t.dataset.go);
   }
+});
+
+// "+ Add Pit": opens a searchable list of BBQ pits; picking one adds it to the comparison.
+function addPitItems(q = '') {
+  const baseId = PITS[state.baseline] ? state.baseline : Object.keys(PITS)[0];
+  const term = q.toLowerCase().trim();
+  const ids = Object.keys(PITS).filter(id => id !== baseId).filter(id => {
+    const p = PITS[id];
+    return p && (!term || p.area.toLowerCase().includes(term) || p.fac.some(f => f.toLowerCase().includes(term)));
+  });
+  return ids.length
+    ? ids.map(id => `<li><button type="button" data-compare="${id}"><strong>${esc(PITS[id].area)}</strong><small>Facilities: ${esc(PITS[id].fac.join(', '))}</small></button></li>`).join('')
+    : '<li class="msg">No matching pits found.</li>';
+}
+
+const addPitSection = () => `
+    <button class="btn" type="button" data-add-pit aria-expanded="false" aria-controls="add-pit-panel">+ Add Pit</button>
+    <div id="add-pit-panel" hidden><div style="display:grid;gap:12px">
+      <label class="field">${icon('search')}<input type="search" id="add-pit-search" placeholder="Search BBQ pits by area or facility..." aria-label="Search BBQ pits" autocomplete="off"></label>
+      <ul class="results" id="add-pit-list" style="margin-top:0;min-height:0">${addPitItems()}</ul>
+    </div></div>`;
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-add-pit]');
+  const panel = document.getElementById('add-pit-panel');
+  if (!btn || !panel) return;
+  panel.hidden = !panel.hidden;
+  btn.setAttribute('aria-expanded', String(!panel.hidden));
+  if (!panel.hidden) document.getElementById('add-pit-search')?.focus();
+});
+
+document.addEventListener('input', e => {
+  if (e.target.id !== 'add-pit-search') return;
+  const list = document.getElementById('add-pit-list');
+  if (list) list.innerHTML = addPitItems(e.target.value);
 });
 
 if (!sb) {
