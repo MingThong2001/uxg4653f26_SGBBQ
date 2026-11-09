@@ -17,10 +17,15 @@ body{background:#050505;color:var(--text);line-height:1.4;display:flex;justify-c
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
 :focus-visible{outline:2px solid var(--accent-soft);outline-offset:2px}
 ul{list-style:none;padding:0}
-.app{width:100%;max-width:440px;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);
+.app{width:100%;max-width:100%;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);
   padding-top:env(safe-area-inset-top,0px)}
-@media(min-width:560px){.app{margin:24px 0;min-height:0;height:min(900px,calc(100dvh - 48px));border-radius:36px;
-  border:1px solid #2a2523;overflow:hidden}}
+@media(min-width:640px){
+  .app{max-width:640px;margin:24px auto;min-height:0;height:min(900px,calc(100dvh - 48px));border-radius:36px;
+    border:1px solid #2a2523;overflow:hidden}
+}
+@media(min-width:1024px){
+  .app{max-width:960px}
+}
 main{flex:1;overflow-y:auto;padding:var(--pad);display:flex;flex-direction:column;gap:var(--gap)}
 main.auth{justify-content:center;background:radial-gradient(120% 70% at 0% 100%,#a86f0b,transparent 55%),
   radial-gradient(90% 60% at 100% 20%,#4a1a08,transparent 60%),#0d0c0b}
@@ -65,6 +70,12 @@ svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;
 /* pit cards */
 .pit{display:flex;flex-direction:column;gap:12px}
 .pit-main{display:grid;grid-template-columns:104px 1fr auto;gap:12px;align-items:start}
+@media(max-width:360px){
+  .pit-main{grid-template-columns:80px 1fr auto}
+}
+@media(min-width:640px){
+  .pit-main{grid-template-columns:140px 1fr auto;gap:16px}
+}
 .pit-main .photo{aspect-ratio:1/1.1;grid-row:span 1}
 .pit h3{font-size:1.05rem;line-height:1.2}
 .tag{display:inline-block;font-size:.68rem;padding:2px 8px;border-radius:8px;background:#3a3633;margin-bottom:6px}
@@ -125,6 +136,7 @@ section.stack{display:flex;flex-direction:column;gap:10px}
   animation: authCardEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,106,26,0.15);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  width:100%;max-width:400px;margin:0 auto;
 }
 .auth-card:hover{
   box-shadow: 0 24px 48px rgba(0,0,0,0.5), 0 0 20px rgba(255,106,26,0.2);
