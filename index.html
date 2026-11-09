@@ -120,20 +120,84 @@ section.stack{display:flex;flex-direction:column;gap:10px}
 .switch:checked{background:var(--accent)}.switch:checked::after{transform:translateX(18px)}
 
 /* auth */
-.auth-card{padding:24px 20px;display:flex;flex-direction:column;gap:14px;background:rgba(30,18,12,.55);backdrop-filter:blur(12px);text-align:center}
-.auth-card h1{font-size:1.8rem}
-.auth-card .eyebrow{align-self:flex-start}
-.or{display:flex;align-items:center;gap:12px;font-size:.85rem}
+.auth-card{
+  padding:24px 20px;display:flex;flex-direction:column;gap:14px;background:rgba(30,18,12,.55);backdrop-filter:blur(12px);text-align:center;
+  animation: authCardEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,106,26,0.15);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.auth-card:hover{
+  box-shadow: 0 24px 48px rgba(0,0,0,0.5), 0 0 20px rgba(255,106,26,0.2);
+}
+@keyframes authCardEnter{
+  0%{opacity:0;transform:translateY(24px) scale(0.97);}
+  100%{opacity:1;transform:translateY(0) scale(1);}
+}
+
+.auth-card h1{font-size:1.8rem; animation: authFadeUp 0.5s ease 0.1s both;}
+.auth-card .eyebrow{align-self:flex-start; animation: authFadeUp 0.5s ease 0.05s both;}
+.auth-card .sub{animation: authFadeUp 0.5s ease 0.15s both;}
+
+@keyframes authFadeUp{
+  0%{opacity:0;transform:translateY(10px);}
+  100%{opacity:1;transform:translateY(0);}
+}
+
+.or{display:flex;align-items:center;gap:12px;font-size:.85rem;animation: authFadeUp 0.5s ease 0.3s both;}
 .or::before,.or::after{content:"";flex:1;height:1px;background:#6b5a50}
-.auth-form{display:flex;flex-direction:column;gap:14px;text-align:left}
-.auth-form .field{align-items:center}
+
+.auth-form{display:flex;flex-direction:column;gap:14px;text-align:left;animation: authFadeUp 0.5s ease 0.2s both;}
+.auth-form .field{
+  align-items:center;
+  transition: all 0.25s ease;
+  position: relative;
+}
+.auth-form .field:focus-within{
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 106, 26, 0.2), inset 0 1px 3px rgba(0,0,0,0.5);
+  transform: translateY(-1px);
+}
 .auth-form input{font-size:1.05rem}
 .auth-form input::placeholder{color:var(--muted)}
-.eye{display:grid;place-items:center;color:var(--muted);padding:4px}
+
+.eye{display:grid;place-items:center;color:var(--muted);padding:4px;transition: color 0.2s ease;}
 .eye:hover,.eye[aria-pressed=true]{color:var(--text)}
-.linkbtn{color:var(--accent);font-weight:600;padding:0;display:inline}
-.go-btn{width:34px;height:34px;border-radius:50%;background:#5a2a14;display:grid;place-items:center;color:#fff}
-.social{justify-content:center;gap:12px;font-size:1.05rem}
+
+.linkbtn{color:var(--accent);font-weight:600;padding:0;display:inline;transition: opacity 0.2s ease;}
+.linkbtn:hover{opacity: 0.8; text-decoration: underline;}
+
+.go-btn{
+  width:34px;height:34px;border-radius:50%;background:#5a2a14;display:grid;place-items:center;color:#fff;
+  transition: background 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
+}
+.go-btn:hover{
+  background: var(--accent);
+  transform: scale(1.08);
+  box-shadow: 0 0 12px rgba(255,106,26,0.5);
+}
+.go-btn:active{transform: scale(0.95);}
+
+.btn{
+  transition: background 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease;
+}
+.btn:hover{
+  filter: brightness(1.1);
+  box-shadow: 0 6px 20px rgba(255,106,26,0.35);
+  transform: translateY(-1px);
+}
+.btn:active{transform: translateY(1px);}
+
+.social{
+  justify-content:center;gap:12px;font-size:1.05rem;
+  transition: all 0.25s ease;
+  animation: authFadeUp 0.5s ease 0.35s both;
+}
+.social:hover{
+  background: #1c1512;
+  border-color: var(--accent-soft);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
 
 /* nav */
 nav{display:grid;grid-template-columns:repeat(3,1fr);padding:10px var(--pad) calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line-soft);background:#0d0c0b}
@@ -142,7 +206,7 @@ nav button{display:flex;flex-direction:column;align-items:center;gap:4px;font-si
 nav span{display:grid;place-items:center;padding:8px 22px;border-radius:999px}
 nav [aria-current=page]{color:var(--accent)}
 nav [aria-current=page] span{background:var(--accent);color:#fff}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
