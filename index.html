@@ -1025,7 +1025,11 @@ document.addEventListener('click', e => {
   } else if ('back' in t.dataset) {
     back();
   } else {
-    if (t.dataset.go === 'search') state.baseline = state.viewing;
+    const targetRoute = t.dataset.go;
+    const currentRoute = view.dataset.route;
+    if (targetRoute === 'explore' && (currentRoute === 'explore' || currentRoute === 'map')) {
+      return; // Ignore redundant double-taps on Explore
+    }
     go(t.dataset.go);
   }
 });
