@@ -328,7 +328,7 @@ function hasNearbyWiFi(pitLat, pitLng) {
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#${name}"/></svg>`;
-const saveBtn = id => `<button class="save" data-save="${id}" aria-pressed="${state.saved.has(id)}" aria-label="Save ${PITS[id]?.area || ''}">${icon('bookmark')}</button>`;
+const saveBtn = id => `<button class="save" data-save="${id}" aria-pressed="${state.saved.has(id)}" aria-label="Save ${PITS[id]?.displayName || PITS[id]?.area || ''}">${icon('bookmark')}</button>`;
 const notice = text => `<button class="notice" data-go="explore">${icon('info')}<span>${text}</span><span class="go">${icon('chev')}</span></button>`;
 const search = () => `<label class="field">${icon('search')}<input type="search" placeholder="Search by area or facility (e.g. Woodlands, WiFi)" aria-label="Search by area or facility"></label>`;
 const eyebrow = text => `<p class="eyebrow">${icon('flame')}${text}</p>`;
@@ -339,13 +339,13 @@ function pitCard(id, { cta = true, label = '' } = {}) {
   return `
   <article class="card pit">
     <div class="pit-header">
-      <div class="photo photo-${p.photo}" role="img" aria-label="Photo of ${p.area}"></div>
+      <div class="photo photo-${p.photo}" role="img" aria-label="Photo of ${p.displayName}"></div>
       <span class="tag">Public Sector</span>
       ${saveBtn(id)}
     </div>
     <div class="pit-body">
       <div class="pit-title-row">
-        <h3>${p.area}</h3>
+        <h3>${p.displayName}</h3>
         <span class="rating-badge">★ ${p.rating} <span style="font-weight:400;color:var(--muted);font-size:0.72rem">(${p.reviews})</span></span>
       </div>
       <div class="meta">
@@ -545,9 +545,20 @@ async function loadSupabasePits() {
 
     if (allData.length > 0) {
       const newPits = {};
+      const areaCounts = {};
+      
+      // First pass: count frequencies of base area names to detect repetitions
+      allData.forEach(pit => {
+        const rawArea = (pit.area || 'Pit').trim();
+        areaCounts[rawArea] = (areaCounts[rawArea] || 0) + 1;
+      });
+
+      const areaSeenIndex = {};
+
       allData.forEach((pit, index) => {
         const pitId = pit.id ? String(pit.id).trim() : `pit_${index + 1}`;
-        const gen = genPitData(pitId, pit.area);
+        const rawArea = (pit.area || `Pit ${pitId}`).trim();
+        const gen = genPitData(pitId, rawArea);
         let parsedFacilities = gen.fac;
         if (Array.isArray(pit.facilities)) parsedFacilities = pit.facilities;
         else if (typeof pit.facilities === 'string') {
@@ -556,9 +567,18 @@ async function loadSupabasePits() {
         const lat = parseFloat(pit.latitude), lng = parseFloat(pit.longitude);
         if (hasNearbyWiFi(lat, lng) && !parsedFacilities.includes('WiFi')) parsedFacilities.push('WiFi');
 
+        // Generate a unique/improved display name if area appears multiple times
+        let displayName = rawArea;
+        if (areaCounts[rawArea] > 1) {
+          areaSeenIndex[rawArea] = (areaSeenIndex[rawArea] || 0) + 1;
+          const suffixNum = areaSeenIndex[rawArea];
+          displayName = `${rawArea} Pit ${suffixNum}`;
+        }
+
         newPits[pitId] = {
           id: pitId,
-          area: pit.area || `Pit ${pitId}`,
+          area: rawArea,
+          displayName: displayName,
           rating: pit.rating || gen.rating,
           reviews: pit.reviews || gen.reviews,
           access: gen.access,
@@ -612,7 +632,7 @@ const screens = {
       ${(() => {
         const allIds = Object.keys(PITS);
         const q = state.searchQuery.toLowerCase().trim();
-        const filteredIds = q ? allIds.filter(id => PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
+        const filteredIds = q ? allIds.filter(id => PITS[id].displayName.toLowerCase().includes(q) || PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
         return filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(state.searchQuery)}"</p>`;
       })()}
     </div>
@@ -628,7 +648,7 @@ const screens = {
     if (!p) return `<div class="top"><button data-back>‹ Back</button></div><p class="card sub">Pit not found.</p>`;
     return `
     <div class="top"><button data-back>‹ Back</button><button class="btn sm" data-go="search">${icon('swap')}Compare Pit</button></div>
-    <header><h1>${p.area}</h1><p class="sub">Public-sector BBQ pit</p></header>
+    <header><h1>${p.displayName}</h1><p class="sub">Public-sector BBQ pit</p></header>
     <div class="photo photo-${p.photo} hero">${saveBtn(p.id)}<span class="badge">1 / 3</span></div>
     <div class="gallery">${['d','a','c'].map(k => `<div class="photo photo-${k}"></div>`).join('')}</div>
     <div class="row between" style="align-items:flex-start">
@@ -662,7 +682,7 @@ const screens = {
     const filteredIds = q 
       ? pool.filter(id => {
           const p = PITS[id];
-          return p && (p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
+          return p && (p.displayName.toLowerCase().includes(q) || p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
         })
       : pool;
 
@@ -671,7 +691,7 @@ const screens = {
     <h1>Search and compare</h1>
     <label class="field">${icon('search')}<input type="search" id="compare-search-input" placeholder="Search by area or facility..." value="${esc(state.searchQuery)}" aria-label="Search by area or facility"></label>
     <div class="card comparing"><div class="photo photo-${base?.photo || 'd'}"></div>
-      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.area || ''}</strong><br><span class="muted">${base?.price || PRICE}</span></p>
+      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.displayName || ''}</strong><br><span class="muted">${base?.price || PRICE}</span></p>
       <span class="accent">${icon('target')}</span></div>
     <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
     ${addPitSection()}
@@ -689,8 +709,8 @@ const screens = {
       <details class="card" open style="padding: 16px; margin-bottom: 14px;">
         <summary style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; font-weight: 600; color: var(--head);">${icon(ic)}${title}</summary>
         <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 12px;">
-          <div style="word-break: break-word;"><strong style="font-size:0.9rem; color:var(--text); display:block; margin-bottom:4px;">${a.area}</strong><div class="sub" style="color:var(--muted); line-height: 1.5;">${leftVal}</div></div>
-          <div style="word-break: break-word;"><strong style="font-size:0.9rem; color:var(--text); display:block; margin-bottom:4px;">${b.area}</strong><div class="sub" style="color:var(--muted); line-height: 1.5;">${rightVal}</div></div>
+          <div style="word-break: break-word;"><strong style="font-size:0.9rem; color:var(--text); display:block; margin-bottom:4px;">${a.displayName}</strong><div class="sub" style="color:var(--muted); line-height: 1.5;">${leftVal}</div></div>
+          <div style="word-break: break-word;"><strong style="font-size:0.9rem; color:var(--text); display:block; margin-bottom:4px;">${b.displayName}</strong><div class="sub" style="color:var(--muted); line-height: 1.5;">${rightVal}</div></div>
         </div>
         <p class="muted" style="border-top: 1px solid var(--line-soft); padding-top: 10px; margin-top: 8px; font-size: 0.78rem;">${note}</p>
       </details>`;
@@ -706,13 +726,13 @@ const screens = {
       <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px;">
         <div style="word-break: break-word;">
           <div class="photo photo-${a.photo}" style="min-height:96px; margin-bottom:10px; border-radius: 12px;"></div>
-          <h2 style="font-size:1.1rem; line-height: 1.2; margin-bottom:4px; color:var(--head);">${a.area}</h2>
+          <h2 style="font-size:1.1rem; line-height: 1.2; margin-bottom:4px; color:var(--head);">${a.displayName}</h2>
           <span class="rating" style="display:block; margin-bottom:6px;">★ ${a.rating} · ${a.reviews} rev</span>
           <strong style="font-size:0.9rem; color:var(--text);">${a.price || PRICE}</strong>
         </div>
         <div style="word-break: break-word;">
           <div class="photo photo-${b.photo}" style="min-height:96px; margin-bottom:10px; border-radius: 12px;"></div>
-          <h2 style="font-size:1.1rem; line-height: 1.2; margin-bottom:4px; color:var(--head);">${b.area}</h2>
+          <h2 style="font-size:1.1rem; line-height: 1.2; margin-bottom:4px; color:var(--head);">${b.displayName}</h2>
           <span class="rating" style="display:block; margin-bottom:6px;">★ ${b.rating} · ${b.reviews} rev</span>
           <strong style="font-size:0.9rem; color:var(--text);">${b.price || PRICE}</strong>
         </div>
@@ -727,8 +747,8 @@ const screens = {
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0;">
-      <button class="btn sm" data-pit="${a.id}" style="width:100%;">View ${a.area}</button>
-      <button class="btn sm" data-pit="${b.id}" style="width:100%;">View ${b.area}</button>
+      <button class="btn sm" data-pit="${a.id}" style="width:100%;">View ${a.displayName}</button>
+      <button class="btn sm" data-pit="${b.id}" style="width:100%;">View ${b.displayName}</button>
     </div>
     
     <div style="margin-bottom: 24px;">
@@ -741,7 +761,7 @@ const screens = {
     const savedIds = [...state.saved];
     const filteredIds = q ? savedIds.filter(id => {
       const p = PITS[id];
-      return p && (p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
+      return p && (p.displayName.toLowerCase().includes(q) || p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
     }) : savedIds;
 
     return `
@@ -783,7 +803,7 @@ function renderPitResults(matches, message) {
   }
   box.hidden = false;
   if (message) { box.innerHTML = `<li class="msg">${message}</li>`; return; }
-  box.innerHTML = matches.slice(0, 8).map(pit => `<li><button type="button" data-pit="${pit.id}"><strong>${pit.area}</strong><small>Facilities: ${pit.fac.join(', ')}</small></button></li>`).join('');
+  box.innerHTML = matches.slice(0, 8).map(pit => `<li><button type="button" data-pit="${pit.id}"><strong>${pit.displayName}</strong><small>Facilities: ${pit.fac.join(', ')}</small></button></li>`).join('');
 }
 
 let searchTimer;
@@ -831,14 +851,14 @@ document.addEventListener('input', e => {
       return;
     }
 
-    const matches = Object.values(PITS).filter(pit => pit.area.toLowerCase().includes(q) || pit.fac.some(f => f.toLowerCase().includes(q)));
+    const matches = Object.values(PITS).filter(pit => pit.displayName.toLowerCase().includes(q) || pit.area.toLowerCase().includes(q) || pit.fac.some(f => f.toLowerCase().includes(q)));
     renderPitResults(matches, matches.length ? '' : 'No matching BBQ pits or facilities found.');
     const currentRoute = document.getElementById('view')?.dataset?.route;
     if (currentRoute === 'explore') {
       const listContainer = document.getElementById('pit-list-container');
       if (listContainer) {
         const allIds = Object.keys(PITS);
-        const filteredIds = q ? allIds.filter(id => PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
+        const filteredIds = q ? allIds.filter(id => PITS[id].displayName.toLowerCase().includes(q) || PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
         listContainer.innerHTML = filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(q)}"</p>`;
       }
     }
@@ -863,7 +883,7 @@ document.addEventListener('input', e => {
         const savedIds = [...state.saved];
         const filteredIds = q ? savedIds.filter(id => {
           const p = PITS[id];
-          return p && (p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
+          return p && (p.displayName.toLowerCase().includes(q) || p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q)));
         }) : savedIds;
 
         container.innerHTML = filteredIds.length 
@@ -897,12 +917,12 @@ function initMap() {
   const bounds = [];
   const q = state.searchQuery.toLowerCase().trim();
   Object.values(PITS).forEach(p => {
-    if (q && !p.area.toLowerCase().includes(q) && !p.fac.some(f => f.toLowerCase().includes(q))) return;
+    if (q && !p.displayName.toLowerCase().includes(q) && !p.area.toLowerCase().includes(q) && !p.fac.some(f => f.toLowerCase().includes(q))) return;
     if (!p.coords) return;
     bounds.push(p.coords);
     L.circleMarker(p.coords, { radius: 7, fillColor: '#ff6a1a', color: '#ffffff', weight: 1.5, opacity: 1, fillOpacity: 0.9 })
       .addTo(map)
-      .bindPopup(`<strong>${p.area}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
+      .bindPopup(`<strong>${p.displayName}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
   });
   if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
   setTimeout(() => map && map.invalidateSize(), 150);
@@ -1040,10 +1060,10 @@ function addPitItems(q = '') {
   const term = q.toLowerCase().trim();
   const ids = Object.keys(PITS).filter(id => id !== baseId).filter(id => {
     const p = PITS[id];
-    return p && (!term || p.area.toLowerCase().includes(term) || p.fac.some(f => f.toLowerCase().includes(term)));
+    return p && (!term || p.displayName.toLowerCase().includes(term) || p.area.toLowerCase().includes(term) || p.fac.some(f => f.toLowerCase().includes(term)));
   });
   return ids.length
-    ? ids.map(id => `<li><button type="button" data-compare="${id}"><strong>${esc(PITS[id].area)}</strong><small>Facilities: ${esc(PITS[id].fac.join(', '))}</small></button></li>`).join('')
+    ? ids.map(id => `<li><button type="button" data-compare="${id}"><strong>${esc(PITS[id].displayName)}</strong><small>Facilities: ${esc(PITS[id].fac.join(', '))}</small></button></li>`).join('')
     : '<li class="msg">No matching pits found.</li>';
 }
 
