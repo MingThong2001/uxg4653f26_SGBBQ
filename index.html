@@ -1109,6 +1109,7 @@ if (!sb) {
     else if (event === 'SIGNED_IN' && route === 'login') go('explore');
     else if (event === 'SIGNED_OUT') { history.length = 0; Object.assign(authUi, { step: 'email', mode: 'login', email: '' }); go('login'); }
   });
+}
 </script>
 </body>
 </html>
