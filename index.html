@@ -68,11 +68,11 @@ svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;
 .pit-header .photo{aspect-ratio:16/9;border-radius:var(--radius) var(--radius) 0 0;width:100%}
 .pit-header .save{position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);border-radius:50%;width:36px;height:36px;display:grid;place-items:center}
 .pit-header .tag{position:absolute;bottom:10px;left:10px;margin-bottom:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);color:var(--text);font-weight:600}
-.pit-body{padding:14px;display:flex;flex-direction:column;gap:10px}
+.pit-body{padding:14px;display:flex;flex-direction:column;gap:14px}
 .pit-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .pit h3{font-size:1.15rem;line-height:1.2;color:var(--head)}
 .pit .rating-badge{display:inline-flex;align-items:center;gap:4px;background:#2a170c;border:1px solid var(--line);padding:3px 8px;border-radius:8px;font-weight:700;font-size:0.8rem;white-space:nowrap}
-.meta{display:flex;flex-direction:column;gap:6px;font-size:.8rem;color:#c9bcb2}
+.meta{display:flex;flex-direction:column;gap:8px;font-size:.8rem;color:#c9bcb2}
 .meta-item{display:flex;align-items:center;gap:6px}
 .price-tag{display:inline-block;font-size:0.95rem;font-weight:700;color:var(--accent-soft);background:rgba(255,106,26,0.1);padding:4px 10px;border-radius:8px;align-self:flex-start;border:1px solid rgba(255,106,26,0.2)}
 .pit-foot{border-top:1px solid var(--line-soft);padding:12px 14px;display:flex;flex-direction:column;gap:8px;font-size:.8rem;background:rgba(0,0,0,0.15)}
@@ -1109,7 +1109,6 @@ if (!sb) {
     else if (event === 'SIGNED_IN' && route === 'login') go('explore');
     else if (event === 'SIGNED_OUT') { history.length = 0; Object.assign(authUi, { step: 'email', mode: 'login', email: '' }); go('login'); }
   });
-}
 </script>
 </body>
 </html>
