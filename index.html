@@ -1045,7 +1045,8 @@ document.addEventListener('click', e => {
   
   if (t.dataset.save) {
     state.saved.has(t.dataset.save) ? state.saved.delete(t.dataset.save) : state.saved.add(t.dataset.save);
-    const top = view.scrollTop; go(view.dataset.route, { push: false }); view.scrollTop = top;
+    if (view.dataset.route === 'saved') { const top = view.scrollTop; go(view.dataset.route, { push: false }); view.scrollTop = top; }
+    else document.querySelectorAll(`[data-save="${t.dataset.save}"]`).forEach(b => b.setAttribute('aria-pressed', String(state.saved.has(t.dataset.save))));
   } else if (t.dataset.pit) {
     state.viewing = t.dataset.pit;
     state.recent = [t.dataset.pit, ...state.recent.filter(id => id !== t.dataset.pit)].slice(0, 5);
