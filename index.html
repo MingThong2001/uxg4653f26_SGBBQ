@@ -701,11 +701,9 @@ const screens = {
     return `
     <h1>Search and compare</h1>
     <label class="field">${icon('search')}<input type="search" id="compare-search-input" placeholder="Search by area or facility..." value="${esc(state.searchQuery)}" aria-label="Search by area or facility"></label>
-    <div class="card comparing"><div class="photo photo-${base?.photo || 'd'}"></div>
-      <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.displayName || ''}</strong><br><span class="muted">${base?.price || PRICE}</span></p>
-      <span class="accent">${icon('target')}</span></div>
-    <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
-    ${addPitSection()}`;
+    ${state.searchQuery.trim() ? `<ul class="results" style="margin-top:0;min-height:0">${addPitItems(state.searchQuery)}</ul>` : ''}
+    <div class="card comparing" style="display:grid;gap:12px;padding:12px"><div style="display:flex;align-items:center;gap:14px"><div class="photo photo-${base?.photo || 'd'}" style="flex:0 0 76px;width:76px;height:76px;min-height:0;border-radius:12px"></div><div style="flex:1;min-width:0;display:grid;gap:3px"><small class="accent" style="font-size:.68rem;font-weight:600;letter-spacing:.06em">COMPARING WITH</small><strong style="font-size:1.02rem;color:var(--head);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${base?.displayName || ''}</strong><span class="muted" style="font-size:.82rem">${base?.price || PRICE}</span></div><span class="accent" style="flex:0 0 auto;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:rgba(255,106,26,.12);border:1px solid var(--line)">${icon('target')}</span></div>
+    <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div></div>`;
   },
 
   compare: () => {
