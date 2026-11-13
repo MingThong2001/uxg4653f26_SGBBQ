@@ -929,6 +929,7 @@ function initMap() {
     bounds.push(p.coords);
     L.circleMarker(p.coords, { radius: 7, fillColor: '#ff6a1a', color: '#ffffff', weight: 1.5, opacity: 1, fillOpacity: 0.9 })
       .addTo(map)
+      .on('click', () => map.setView(p.coords, 17))
       .bindPopup(`<strong>${p.displayName}</strong><br>${p.access}<br><button class="link" data-pit="${p.id}">View pit →</button>`);
   });
   if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
