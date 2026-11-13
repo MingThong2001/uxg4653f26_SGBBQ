@@ -231,12 +231,27 @@ nav span{display:grid;place-items:center;padding:8px 22px;border-radius:999px}
 nav [aria-current=page]{color:var(--accent)}
 nav [aria-current=page] span{background:var(--accent);color:#fff}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* loading screen (added) */
+#app-loader{position:fixed;top:0;bottom:0;left:0;right:0;width:100%;max-width:440px;margin:0 auto;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+  background:radial-gradient(120% 70% at 0% 100%,#a86f0b,transparent 55%),radial-gradient(90% 60% at 100% 20%,#4a1a08,transparent 60%),#0d0c0b;
+  padding:env(safe-area-inset-top,0px) 20px env(safe-area-inset-bottom,0px);transition:opacity .4s ease,visibility .4s ease}
+@media(min-width:560px){#app-loader{top:24px;bottom:auto;height:min(900px,calc(100dvh - 48px));border-radius:36px;border:1px solid #2a2523;overflow:hidden}}
+#app-loader.ls-hide{opacity:0;visibility:hidden;pointer-events:none}
+#app-loader .ls-logo{height:120px;width:auto;max-width:60%;object-fit:contain}
+#app-loader .ls-spin{width:44px;height:44px;border-radius:50%;border:3px solid rgba(255,106,26,.2);border-top-color:var(--accent);animation:lsSpin .9s linear infinite}
+#app-loader .ls-text{color:var(--head);font-size:.95rem;font-weight:600;letter-spacing:.02em}
+@keyframes lsSpin{to{transform:rotate(360deg)}}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<div id="app-loader" role="status" aria-live="polite" aria-label="Loading BBQ Pit Finder">
+  <img class="ls-logo" src="icons/BrandLogo.png" alt="" onerror="this.style.display='none'">
+  <div class="ls-spin" aria-hidden="true"></div>
+  <p class="ls-text">Firing up the pits…</p>
+</div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="flame" viewBox="0 0 24 24"><path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-9z"/></symbol>
   <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
@@ -1120,6 +1135,33 @@ if (!sb) {
     else if (event === 'SIGNED_OUT') { history.length = 0; Object.assign(authUi, { step: 'email', mode: 'login', email: '' }); go('login'); }
   });
 }
+</script>
+<script>
+/* loading screen controller (added) */
+(function () {
+  var loader = document.getElementById('app-loader');
+  if (!loader) return;
+  var start = Date.now(), routeSeenAt = 0, done = false;
+  function finish() {
+    if (done) return;
+    done = true;
+    clearInterval(timer);
+    loader.classList.add('ls-hide');
+    setTimeout(function () { loader.remove(); }, 500);
+  }
+  var timer = setInterval(function () {
+    var now = Date.now();
+    if (now - start > 8000) return finish();          // hard fallback
+    var v = document.getElementById('view');
+    var route = v && v.dataset ? v.dataset.route : '';
+    if (!route) return;                                // auth state not resolved yet
+    if (!routeSeenAt) routeSeenAt = now;
+    var pitsReady = false;
+    try { pitsReady = Object.keys(PITS).length > 0; } catch (e) {}
+    var ready = route === 'login' || pitsReady || now - routeSeenAt > 3000;
+    if (ready && now - start > 700) finish();          // brief minimum so it never flashes
+  }, 100);
+})();
 </script>
 </body>
 </html>
