@@ -678,7 +678,7 @@ const screens = {
         <li class="fact"><i>${icon('access')}</i><span><small>Accessibility</small>${p.accessLong}</span></li>
       </ul>
     </section>
-    <section class="stack"><div class="row between"><h2>Facilities</h2><span class="link">Attributes</span></div>
+    <section class="stack"><div class="row between"><h2>Facilities</h2></div>
       <div class="fac-grid">${p.fac.map(f => `<div>${icon(FAC_ICON[f] ? FAC_ICON[f] : 'pin')}${f}</div>`).join('')}</div>
     </section>
     <a class="btn" href="${p.agency === "People's Association" ? 'https://www.onepa.gov.sg/facilities/availability?facilityId=BishanEastZone6RN_BBQPIT(RC)' : 'https://www.nparks.gov.sg/visit/activities/barbecuing'}" target="_blank" rel="noopener noreferrer">Book now ${icon('out')}</a>`;
@@ -699,16 +699,13 @@ const screens = {
       : pool;
 
     return `
-    ${eyebrow('Recently Seen')}
     <h1>Search and compare</h1>
     <label class="field">${icon('search')}<input type="search" id="compare-search-input" placeholder="Search by area or facility..." value="${esc(state.searchQuery)}" aria-label="Search by area or facility"></label>
     <div class="card comparing"><div class="photo photo-${base?.photo || 'd'}"></div>
       <p><small class="accent" style="font-size:.7rem">COMPARING WITH</small><br><strong>${base?.displayName || ''}</strong><br><span class="muted">${base?.price || PRICE}</span></p>
       <span class="accent">${icon('target')}</span></div>
     <div class="chips"><span class="chip">Toilets</span><span class="chip">Step-free</span><span class="chip">WiFi</span></div>
-    ${addPitSection()}
-    <div class="row between"><h2>Recently Seen</h2><span class="link">${filteredIds.length} other pits</span></div>
-    ${filteredIds.length ? filteredIds.slice(0, 3).map(id => pitCard(id, { label: `<button class="btn" data-compare="${id}">Compare with this pit ${icon('swap')}</button>` })).join('') : '<p class="card sub">No matching pits found.</p>'}`;
+    ${addPitSection()}`;
   },
 
   compare: () => {
