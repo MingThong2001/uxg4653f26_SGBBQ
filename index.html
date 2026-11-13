@@ -23,6 +23,8 @@ ul{list-style:none;padding:0}
   padding-top:env(safe-area-inset-top,0px)}
 @media(min-width:560px){.app{margin:24px 0;min-height:0;height:min(900px,calc(100dvh - 48px));border-radius:36px;
   border:1px solid #2a2523;overflow:hidden}}
+.brand-logo{display:block;align-self:flex-start;height:36px;width:auto;max-width:50%;object-fit:contain;margin-bottom:-10px}
+.login-logo{display:block;align-self:center;height:140px;width:auto;max-width:70%;object-fit:contain}
 main{flex:1;overflow-y:auto;padding:var(--pad);display:flex;flex-direction:column;gap:var(--gap)}
 @property --ax{syntax:'<percentage>';inherits:false;initial-value:0%}
 @property --ay{syntax:'<percentage>';inherits:false;initial-value:100%}
@@ -345,6 +347,8 @@ const notice = text => `<button class="notice" data-go="explore">${icon('info')}
 const search = () => `<label class="field">${icon('search')}<input type="search" placeholder="Search by area or facility (e.g. Woodlands, WiFi)" aria-label="Search by area or facility"></label>`;
 const eyebrow = text => `<p class="eyebrow">${text === 'BBQ PIT FINDER' ? '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAARCAYAAAAG/yacAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAOdEVYdFNvZnR3YXJlAEZpZ21hnrGWYwAAAXxJREFUeAGNU1FOwkAQnWlrQsIP/GksSTmBcALxBOoN8MNQv+AGlBPAZ40fxBOoJ6CeQDyBGCXxk0RjSKSMszMLKaREJ2m3uztv3nuzW4CcoHA/oLAyhB2BeQAAd8RbARS+yjiYzbZznJ0AE9/FJuSEszl1GwqgW7vb/gcIGvJOYaBADKhV6f8BwokODJ7vdWSO1KHQ725krb2Qdwq4eADwXnhlgvG0SpeHNXCdO54HnBZh/N7LMLF5hDLGH4YpEVkMwJvpGODnxCqI6OrgTEBKLeZLlvxV66DMpVC6PJc1csQfUst/YpaalZtIMwhmLLVumTU/9Eeyl1LdEYBJUgkKcNKLLMDG40qBpwAj461KYRDg9WQ7edWzgPlAG4Ew5qfE9A2M8wHUKbG/5bEh4A4mpns9uzXUa5QT82JfmFBvip5Tyx/wV9ucD48RLOAZ3D2WvTBFuuLVeC581s0Fxkx3IpuQFwkXWDdn49dQeV4TCI/U+5LPDO+Nj2zeL9pgkswZIDjlAAAAAElFTkSuQmCC" alt="" width="13" height="17">' : icon('flame')}${text}</p>`;
 
+const brandLogo = () => `<img class="brand-logo" src="icons/BrandLogo.png" alt="BBQ Pit Finder">`;
+
 function pitCard(id, { cta = true, label = '' } = {}) {
   const p = PITS[id];
   if (!p) return '';
@@ -378,7 +382,6 @@ function pitCard(id, { cta = true, label = '' } = {}) {
 }
 
 const exploreHeader = () => `
-  ${eyebrow('BBQ PIT FINDER')}
   <h1>Find your fire.</h1>
   ${search().replace('<input ','<input id="place-search" autocomplete="off" value="' + esc(state.searchQuery) + '" ')}
   <ul class="results" id="results" aria-live="polite" hidden></ul>
@@ -621,8 +624,8 @@ const screens = {
     const signup = authUi.mode === 'signup', askPassword = authUi.step === 'password';
     const switchText = signup ? 'Already have an account? <button type="button" class="linkbtn" data-auth-mode="login">Log in</button>' : "Don't have an account? <button type=\"button\" class=\"linkbtn\" data-auth-mode=\"signup\">Sign up</button>";
     return `
+    <img class="login-logo" src="icons/BrandLogo.png" alt="BBQ Pit Finder">
     <section class="card auth-card">
-      ${eyebrow('BBQ PIT FINDER')}
       <h1>${signup ? 'Create account' : 'Welcome Back!'}</h1>
       <p class="sub">${signup ? 'Sign up to find your fire' : 'Sign in to your Account'}</p>
       <form id="login-form" class="auth-form" novalidate>
@@ -772,7 +775,6 @@ const screens = {
     }) : savedIds;
 
     return `
-    ${eyebrow('BBQ PIT FINDER')}
     <h1>Your favourite fires.</h1>
     <p class="sub">Good spots, kept close for your next gathering.</p>
     <label class="field">
@@ -787,7 +789,6 @@ const screens = {
   },
 
   profile: () => `
-    ${eyebrow('BBQ PIT FINDER')}
     <h1>Your Page</h1>
     <section class="card row"><span class="avatar">${esc(initials())}</span><div><strong style="font-size:1.2rem">${esc(displayName())}</strong><br><span class="muted">${esc(session?.user?.email || '')}</span></div></section>
     <h2>General Settings</h2>
