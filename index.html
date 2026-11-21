@@ -999,16 +999,35 @@ document.addEventListener('submit', async e => {
   const password = document.getElementById('login-password').value;
   if (!password) return authMsg('Enter your password.', true);
 
-  if (authUi.mode === 'signup') {
-    const { error } = await sb.auth.signUp({ email, password });
-    if (error) {
-      authMsg(error.message, true);
+  const submitBtn = e.target.querySelector('button[type=submit]');
+  if (submitBtn) submitBtn.disabled = true;
+  try {
+    if (authUi.mode === 'signup') {
+      const opts = location.protocol.startsWith('http') ? { emailRedirectTo: location.origin + location.pathname } : {};
+      const { data, error } = await sb.auth.signUp({ email, password, options: opts });
+      if (error) {
+        authMsg(error.message, true);
+      } else if (data.session) {
+        // Email confirmation is OFF: user is already signed in, onAuthStateChange takes them to Explore.
+      } else if (data.user && data.user.identities && data.user.identities.length === 0) {
+        authUi.mode = 'login'; rerenderLogin();
+        authMsg('This email is already registered. Please log in.', true);
+      } else {
+        // Email confirmation is ON: account exists but must be confirmed before login.
+        authUi.mode = 'login'; rerenderLogin();
+        authMsg('Account created! Check your inbox (and spam) and click the confirmation link, then log in.');
+      }
     } else {
-      authMsg('Account created! Please check your email if confirmation is required, or log in.');
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        if (error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message)) authMsg('Please confirm your email first. Check your inbox (and spam) for the link.', true);
+        else if (error.code === 'invalid_credentials' || error.status === 400) authMsg('Incorrect email or password.', true);
+        else authMsg(error.message, true);
+      }
     }
-  } else {
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) authMsg(error.status === 400 ? 'Incorrect email or password.' : error.message, true);
+  } finally {
+    const b = document.querySelector('#login-form button[type=submit]');
+    if (b) b.disabled = false;
   }
 });
 
