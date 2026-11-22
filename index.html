@@ -87,6 +87,8 @@ svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;
 .pit-header .photo{aspect-ratio:16/9;border-radius:var(--radius) var(--radius) 0 0;width:100%}
 .pit-header .save{position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);border-radius:50%;width:36px;height:36px;display:grid;place-items:center}
 .pit-header .tag{position:absolute;bottom:12px;left:12px;margin-bottom:0;display:inline-flex;align-items:center;gap:6px;padding:5px 12px 5px 10px;border-radius:999px;background:linear-gradient(135deg,rgba(255,106,26,0.92),rgba(255,154,92,0.92));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#fff;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1;border:1px solid rgba(255,255,255,0.28);box-shadow:0 4px 12px rgba(255,106,26,0.35),0 1px 3px rgba(0,0,0,0.3)}
+.pit-header .verified{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:5px;padding:5px 10px 5px 8px;border-radius:999px;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#7ee0a1;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1;border:1px solid rgba(126,224,161,0.45)}
+.pit-header .verified svg{width:12px;height:12px;stroke-width:2.4}
 .pit-header .tag::before{content:"";width:6px;height:6px;border-radius:50%;background:#fff;opacity:.9;flex:none}
 .pit-body{padding:14px;display:flex;flex-direction:column;gap:14px}
 .pit-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
@@ -387,6 +389,7 @@ function pitCard(id, { cta = true, label = '' } = {}) {
     <div class="pit-header">
       <div class="photo photo-${p.photo}" role="img" aria-label="Photo of ${p.displayName}"></div>
       <span class="tag">Public Sector</span>
+      ${p.verified ? `<span class="verified">${icon('shield')}Verified</span>` : ''}
       ${saveBtn(id)}
     </div>
     <div class="pit-body">
@@ -631,6 +634,7 @@ async function loadSupabasePits() {
           fac: parsedFacilities,
           photo: index < 5 ? 'b' + (index + 1) : (['a','c','d'].includes(pit.photo_key) ? pit.photo_key : ['d','a','c'][index % 3]),
           price: pit.price || gen.price,
+          verified: ((hashStr(pitId + '|verified') >>> 7) & 1) === 1,
           agency: gen.agency,
           hours: gen.hours,
           coords: [!isNaN(lat) ? lat : 1.3000, !isNaN(lng) ? lng : 103.9110],
