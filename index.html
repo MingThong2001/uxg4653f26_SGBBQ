@@ -103,6 +103,31 @@ svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;
 .save{color:var(--muted)}.save[aria-pressed=true]{color:var(--accent)}.save[aria-pressed=true] svg{fill:currentColor}
 .save svg{width:1.3em;height:1.3em}
 
+/* filter sheet */
+.filter-btn{position:relative;flex:none;display:grid;place-items:center;width:52px;border:1px solid var(--line);border-radius:14px;background:#14100e;color:var(--accent)}
+.filter-btn:hover{border-color:var(--accent)}
+.fb-badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--accent);color:#fff;font-size:.68rem;font-weight:700;display:grid;place-items:center;line-height:1}
+.fs{position:fixed;inset:0;z-index:2000;display:flex;justify-content:center;align-items:flex-end}
+.fs[hidden]{display:none}
+.fs-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+.fs-panel{position:relative;width:100%;max-width:440px;max-height:min(90dvh,820px);display:flex;flex-direction:column;background:linear-gradient(160deg,var(--card-a),var(--card-b));border:1px solid var(--line);border-radius:24px 24px 0 0;overflow:hidden;outline:0}
+@media(min-width:560px){.fs{align-items:center}.fs-panel{border-radius:24px}}
+.fs-body{flex:1;overflow-y:auto;padding:20px 20px 4px}
+.fs-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--line-soft)}
+.fs-head h2{font-size:1.35rem;font-weight:700;color:var(--head)}
+.fs-reset{color:var(--muted);font-size:.8rem;font-weight:600;padding:4px 0}
+.fs-reset:hover{color:var(--accent)}
+.fs-sec{padding:16px 0;border-bottom:1px solid var(--line-soft);display:flex;flex-direction:column;gap:12px}
+.fs-sec:last-child{border-bottom:0}
+.fs-sec h3{font-size:1rem;font-weight:600;color:var(--head)}
+.fs-chips{display:flex;flex-wrap:wrap;gap:8px}
+.fs-chip{padding:8px 14px;border-radius:999px;background:#1c1816;border:1px solid var(--line-soft);font-size:.8rem;font-weight:600;color:var(--text)}
+.fs-chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.fs-check{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.9rem;cursor:pointer}
+.fs-check input{width:18px;height:18px;accent-color:var(--accent);flex:none;cursor:pointer}
+.fs-grid{display:flex;flex-direction:column;gap:12px}
+.fs-foot{padding:14px 20px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line-soft);background:rgba(0,0,0,.2)}
+
 /* map */
 #onemap.map{display:block;flex:1;min-height:340px;padding:0;background:#0a1230;border-radius:var(--radius);overflow:hidden}
 .leaflet-container{font:inherit}
@@ -292,6 +317,7 @@ nav [aria-current=page] span{background:var(--accent);color:#fff}
   <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 4M6.4 7.4C3.8 9.2 2 12 2 12s4 7 10 7c1.6 0 3-.4 4.3-1M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
   <symbol id="wifi" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></symbol>
+  <symbol id="sliders" viewBox="0 0 24 24"><path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h12"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
 </svg>
 
 <div class="app" id="app">
@@ -319,6 +345,10 @@ const state = {
   searchQuery: '',
   savedSearchQuery: '', 
   listMode: 'list',
+  filters: { distance: 0, avail: [], fac: [], price: '', group: '' },
+  userLoc: null,
+  locMsg: '',
+  locPending: false,
   recent: [] 
 };
 
@@ -416,7 +446,10 @@ function pitCard(id, { cta = true, label = '' } = {}) {
 
 const exploreHeader = () => `
   <h1>Find your fire.</h1>
-  ${search().replace('<input ','<input id="place-search" autocomplete="off" value="' + esc(state.searchQuery) + '" ')}
+  <div class="row" style="align-items:stretch">
+    ${search().replace('<input ','<input id="place-search" autocomplete="off" value="' + esc(state.searchQuery) + '" ')}
+    <button type="button" class="filter-btn" data-fs-open aria-label="Open filters">${icon('sliders')}${fsCount(state.filters) ? `<span class="fb-badge">${fsCount(state.filters)}</span>` : ''}</button>
+  </div>
   <ul class="results" id="results" aria-live="polite" hidden></ul>
   <div class="row between">
     <span class="row" style="font-weight:600;font-size:.9rem">${icon('compass')}Singapore Parks (${Object.keys(PITS).length} Pits)</span>
@@ -635,6 +668,7 @@ async function loadSupabasePits() {
           photo: index < 5 ? 'b' + (index + 1) : (['a','c','d'].includes(pit.photo_key) ? pit.photo_key : ['d','a','c'][index % 3]),
           price: pit.price || gen.price,
           verified: ((hashStr(pitId + '|verified') >>> 7) & 1) === 1,
+          extra: genExtra(pitId),
           agency: gen.agency,
           hours: gen.hours,
           coords: [!isNaN(lat) ? lat : 1.3000, !isNaN(lng) ? lng : 103.9110],
@@ -679,10 +713,8 @@ const screens = {
     ${exploreHeader()}
     <div id="pit-list-container" style="display:${state.listMode === 'list' ? 'flex' : 'none'}; flex-direction:column; gap:16px;">
       ${(() => {
-        const allIds = Object.keys(PITS);
-        const q = state.searchQuery.toLowerCase().trim();
-        const filteredIds = q ? allIds.filter(id => PITS[id].displayName.toLowerCase().includes(q) || PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
-        return filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(state.searchQuery)}"</p>`;
+        const filteredIds = exploreIds();
+        return filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : exploreEmpty();
       })()}
     </div>
     <div id="onemap" class="map" role="region" aria-label="Map of BBQ Pits" style="display:${state.listMode === 'map' ? 'block' : 'none'};"></div>
@@ -889,9 +921,8 @@ document.addEventListener('input', e => {
       if (currentRoute === 'explore') {
         const listContainer = document.getElementById('pit-list-container');
         if (listContainer) {
-          const allIds = Object.keys(PITS);
-          const filteredIds = allIds.slice(0, 5);
-          listContainer.innerHTML = filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : '';
+          const filteredIds = exploreIds();
+          listContainer.innerHTML = filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : exploreEmpty();
         }
       }
       if (currentRoute === 'map' || (currentRoute === 'explore' && state.listMode === 'map')) {
@@ -900,15 +931,14 @@ document.addEventListener('input', e => {
       return;
     }
 
-    const matches = Object.values(PITS).filter(pit => pit.displayName.toLowerCase().includes(q) || pit.area.toLowerCase().includes(q) || pit.fac.some(f => f.toLowerCase().includes(q)));
+    const matches = Object.values(PITS).filter(pit => matchesFilters(pit) && (pit.displayName.toLowerCase().includes(q) || pit.area.toLowerCase().includes(q) || pit.fac.some(f => f.toLowerCase().includes(q))));
     renderPitResults(matches, matches.length ? '' : 'No matching BBQ pits or facilities found.');
     const currentRoute = document.getElementById('view')?.dataset?.route;
     if (currentRoute === 'explore') {
       const listContainer = document.getElementById('pit-list-container');
       if (listContainer) {
-        const allIds = Object.keys(PITS);
-        const filteredIds = q ? allIds.filter(id => PITS[id].displayName.toLowerCase().includes(q) || PITS[id].area.toLowerCase().includes(q) || PITS[id].fac.some(f => f.toLowerCase().includes(q))) : allIds.slice(0, 5);
-        listContainer.innerHTML = filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : `<p class="card sub">No BBQ pits or facilities found matching "${esc(q)}"</p>`;
+        const filteredIds = exploreIds();
+        listContainer.innerHTML = filteredIds.length > 0 ? filteredIds.map(id => pitCard(id)).join('') : exploreEmpty();
       }
     }
     if (currentRoute === 'map' || (currentRoute === 'explore' && state.listMode === 'map')) {
@@ -967,6 +997,7 @@ function initMap() {
   const q = state.searchQuery.toLowerCase().trim();
   Object.values(PITS).forEach(p => {
     if (q && !p.displayName.toLowerCase().includes(q) && !p.area.toLowerCase().includes(q) && !p.fac.some(f => f.toLowerCase().includes(q))) return;
+    if (!matchesFilters(p)) return;
     if (!p.coords) return;
     bounds.push(p.coords);
     L.circleMarker(p.coords, { radius: 7, fillColor: '#ff6a1a', color: '#ffffff', weight: 1.5, opacity: 1, fillOpacity: 0.9 })
@@ -1196,6 +1227,171 @@ document.addEventListener('scroll', e => {
   if (badge) badge.textContent = `${i + 1} / ${n}`;
   document.querySelectorAll('#car-dots i').forEach((d, j) => d.classList.toggle('on', j === i));
 }, true);
+
+/* ---------- Filters ---------- */
+const FS_DISTANCES = [[1, '1 km'], [3, '3 km'], [5, '5 km'], [10, '10 km'], [0, 'Any']];
+const FS_AVAIL = [['today', 'Available Today'], ['weekend', 'Available This Weekend'], ['walkin', 'Walk-in Allowed']];
+const FS_FAC = [['shelter', 'Sheltered Pit'], ['tables', 'Tables & Benches'], ['toilets', 'Nearby Toilets'], ['water', 'Water Point'], ['lights', 'Lighting'], ['parking', 'Parking']];
+const FS_PRICE = [['free', 'Free'], ['lt20', 'Below $20'], ['20-50', '$20–$50'], ['50-100', '$50–$100']];
+const FS_GROUP = [['1-5', '1–5'], ['6-10', '6–10'], ['11-20', '11–20'], ['20+', '20+']];
+const FS_GROUP_NEED = { '1-5': 5, '6-10': 10, '11-20': 20, '20+': 21 };
+const FS_FAC_KEY = { toilets: 'toilet', water: 'water', lights: 'light', parking: 'park' };
+
+const fsDefault = () => ({ distance: 0, avail: [], fac: [], price: '', group: '' });
+const fsClone = f => ({ ...f, avail: [...f.avail], fac: [...f.fac] });
+const fsCount = f => (f.distance ? 1 : 0) + f.avail.length + f.fac.length + (f.price ? 1 : 0) + (f.group ? 1 : 0);
+let fsDraft = fsDefault();
+
+// The database has no availability / sheltered / tables / group-capacity fields, so these are generated per pit (stable, like the other generated pit data).
+function genExtra(id) {
+  const h = hashStr(id + '|filters');
+  return { today: h % 10 < 6, weekend: (h >>> 4) % 10 < 7, walkin: (h >>> 8) % 10 < 4, shelter: (h >>> 12) % 10 < 5, tables: (h >>> 16) % 10 < 6, capacity: [6, 10, 15, 20, 30, 40][(h >>> 20) % 6] };
+}
+const facHas = (p, k) => k === 'shelter' ? !!(p.extra && p.extra.shelter) : k === 'tables' ? !!(p.extra && p.extra.tables) : p.fac.some(f => f.toLowerCase().includes(FS_FAC_KEY[k]));
+function priceVal(p) {
+  const s = String(p.price || PRICE);
+  if (/free/i.test(s)) return 0;
+  const m = s.match(/\d+(\.\d+)?/);
+  return m ? parseFloat(m[0]) : null;
+}
+function distKm(a, b) {
+  const r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLng = (b[1] - a[1]) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+function matchesFilters(p, f = state.filters) {
+  const x = p.extra || {};
+  if (f.distance && state.userLoc && p.coords && distKm(state.userLoc, p.coords) > f.distance) return false;
+  if (f.avail.some(k => !x[k])) return false;
+  if (f.fac.some(k => !facHas(p, k))) return false;
+  if (f.price) {
+    const v = priceVal(p);
+    if (v === null) return false;
+    const ok = f.price === 'free' ? v === 0 : f.price === 'lt20' ? v > 0 && v < 20 : f.price === '20-50' ? v >= 20 && v <= 50 : v > 50 && v <= 100;
+    if (!ok) return false;
+  }
+  if (f.group && (x.capacity || 0) < FS_GROUP_NEED[f.group]) return false;
+  return true;
+}
+const textMatches = (p, q) => !q || p.displayName.toLowerCase().includes(q) || p.area.toLowerCase().includes(q) || p.fac.some(f => f.toLowerCase().includes(q));
+function exploreIds() {
+  const q = state.searchQuery.toLowerCase().trim();
+  const all = Object.keys(PITS);
+  if (!q && !fsCount(state.filters)) return all.slice(0, 5);
+  return all.filter(id => matchesFilters(PITS[id]) && textMatches(PITS[id], q));
+}
+const exploreEmpty = () => fsCount(state.filters)
+  ? `<p class="card sub">No BBQ pits match your filters${state.searchQuery.trim() ? ' and search' : ''}.</p>`
+  : `<p class="card sub">No BBQ pits or facilities found matching "${esc(state.searchQuery)}"</p>`;
+const countMatches = f => { const q = state.searchQuery.toLowerCase().trim(); return Object.values(PITS).filter(p => matchesFilters(p, f) && textMatches(p, q)).length; };
+
+function updateFilterBadge() {
+  const n = fsCount(state.filters);
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    let el = b.querySelector('.fb-badge');
+    if (n) { if (!el) { el = document.createElement('span'); el.className = 'fb-badge'; b.appendChild(el); } el.textContent = n; }
+    else if (el) el.remove();
+  });
+}
+
+function refreshExplore() {
+  const route = document.getElementById('view')?.dataset?.route;
+  const lc = document.getElementById('pit-list-container');
+  if (lc) {
+    const ids = exploreIds();
+    lc.innerHTML = ids.length > 0 ? ids.map(id => pitCard(id)).join('') : exploreEmpty();
+  }
+  if (route === 'map' || (route === 'explore' && state.listMode === 'map')) initMap();
+  updateFilterBadge();
+  if (state.searchQuery) {
+    const q = state.searchQuery.toLowerCase().trim();
+    const matches = Object.values(PITS).filter(p => matchesFilters(p) && textMatches(p, q));
+    renderPitResults(matches, matches.length ? '' : 'No matching BBQ pits or facilities found.');
+  }
+}
+
+function requestUserLoc() {
+  if (state.userLoc || state.locPending) return;
+  if (!navigator.geolocation) { state.locMsg = 'Location isn’t available on this device, so distance isn’t applied.'; syncSheet(); return; }
+  state.locPending = true; state.locMsg = 'Getting your location…'; syncSheet();
+  navigator.geolocation.getCurrentPosition(pos => {
+    state.userLoc = [pos.coords.latitude, pos.coords.longitude];
+    state.locPending = false; state.locMsg = '';
+    syncSheet();
+    if (state.filters.distance) refreshExplore();
+  }, () => {
+    state.locPending = false; state.locMsg = 'Couldn’t get your location, so distance isn’t applied.';
+    syncSheet();
+  }, { timeout: 8000, maximumAge: 300000 });
+}
+
+document.body.insertAdjacentHTML('beforeend', `
+<div class="fs" id="filter-sheet" hidden>
+  <div class="fs-backdrop" data-fs-close></div>
+  <div class="fs-panel" role="dialog" aria-modal="true" aria-labelledby="fs-title" tabindex="-1">
+    <div class="fs-body">
+      <div class="fs-head"><div><h2 id="fs-title">Filters</h2><p class="muted">Find a BBQ spot that suits your needs.</p></div><button type="button" class="fs-reset" data-fs-reset>Reset</button></div>
+      <section class="fs-sec"><h3>Distance</h3><div class="fs-chips">${FS_DISTANCES.map(([v, l]) => `<button type="button" class="fs-chip" data-fs-set="distance" data-val="${v}" aria-pressed="false">${l}</button>`).join('')}</div><p class="muted" id="fs-loc-msg" hidden></p></section>
+      <section class="fs-sec"><h3>Availability</h3>${FS_AVAIL.map(([v, l]) => `<label class="fs-check"><span>${l}</span><input type="checkbox" data-fs-check="avail" value="${v}"></label>`).join('')}</section>
+      <section class="fs-sec"><h3>Facilities</h3><div class="fs-grid">${FS_FAC.map(([v, l]) => `<label class="fs-check"><span>${l}</span><input type="checkbox" data-fs-check="fac" value="${v}"></label>`).join('')}</div></section>
+      <section class="fs-sec"><h3>Price Range</h3><div class="fs-chips">${FS_PRICE.map(([v, l]) => `<button type="button" class="fs-chip" data-fs-set="price" data-val="${v}" aria-pressed="false">${l}</button>`).join('')}</div></section>
+      <section class="fs-sec"><h3>Group Size</h3><div class="fs-chips">${FS_GROUP.map(([v, l]) => `<button type="button" class="fs-chip" data-fs-set="group" data-val="${v}" aria-pressed="false">${l}</button>`).join('')}</div></section>
+    </div>
+    <div class="fs-foot"><button type="button" class="btn" id="fs-apply" data-fs-apply>Show Locations</button></div>
+  </div>
+</div>`);
+
+function syncSheet() {
+  const sh = document.getElementById('filter-sheet');
+  if (!sh) return;
+  sh.querySelectorAll('[data-fs-set]').forEach(b => {
+    const k = b.dataset.fsSet, cur = k === 'distance' ? String(fsDraft.distance) : fsDraft[k];
+    b.setAttribute('aria-pressed', String(cur === b.dataset.val));
+  });
+  sh.querySelectorAll('[data-fs-check]').forEach(i => { i.checked = fsDraft[i.dataset.fsCheck].includes(i.value); });
+  const n = countMatches(fsDraft);
+  document.getElementById('fs-apply').textContent = `Show ${n} Location${n === 1 ? '' : 's'}`;
+  const msg = document.getElementById('fs-loc-msg');
+  msg.textContent = fsDraft.distance ? state.locMsg : '';
+  msg.hidden = !msg.textContent;
+}
+function openSheet() {
+  fsDraft = fsClone(state.filters);
+  if (fsDraft.distance) requestUserLoc();
+  syncSheet();
+  const sh = document.getElementById('filter-sheet');
+  sh.hidden = false;
+  sh.querySelector('.fs-body').scrollTop = 0;
+  sh.querySelector('.fs-panel').focus({ preventScroll: true });
+}
+const closeSheet = () => { document.getElementById('filter-sheet').hidden = true; };
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-fs-open],[data-fs-close],[data-fs-reset],[data-fs-apply],[data-fs-set]');
+  if (!t) return;
+  if ('fsOpen' in t.dataset) openSheet();
+  else if ('fsClose' in t.dataset) closeSheet();
+  else if ('fsReset' in t.dataset) { fsDraft = fsDefault(); syncSheet(); }
+  else if ('fsApply' in t.dataset) { state.filters = fsClone(fsDraft); closeSheet(); refreshExplore(); }
+  else {
+    const k = t.dataset.fsSet, v = t.dataset.val;
+    if (k === 'distance') { fsDraft.distance = Number(v); if (fsDraft.distance) requestUserLoc(); }
+    else fsDraft[k] = fsDraft[k] === v ? '' : v;
+    syncSheet();
+  }
+});
+document.addEventListener('change', e => {
+  const c = e.target.closest && e.target.closest('[data-fs-check]');
+  if (!c) return;
+  const list = fsDraft[c.dataset.fsCheck];
+  const i = list.indexOf(c.value);
+  if (c.checked && i < 0) list.push(c.value);
+  else if (!c.checked && i >= 0) list.splice(i, 1);
+  syncSheet();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('filter-sheet').hidden) closeSheet();
+});
 
 if (!sb) {
   go('login');
