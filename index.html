@@ -145,6 +145,15 @@ svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;
 #review-sheet textarea:focus{border-color:var(--accent)}
 #review-sheet .btn:disabled{opacity:.6;cursor:default}
 #review-success{z-index:2100;align-items:center;padding:20px}
+.rv-photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.rv-photo{position:relative;width:84px;height:84px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.rv-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.rv-photo button{position:absolute;top:4px;right:4px;width:22px;height:22px;border:0;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;font-size:.8rem;line-height:1;cursor:pointer}
+.rv-add{width:84px;height:84px;border-radius:12px;border:1px dashed var(--line);background:#14100e;color:var(--muted);font-size:.78rem;cursor:pointer;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px}
+.rv-add:disabled{opacity:.6;cursor:default}
+.rv-imgs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.rv-imgs a{display:block;width:84px;height:84px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.rv-imgs img{width:100%;height:100%;object-fit:cover;display:block}
 .rv-stars{display:flex;gap:6px}
 .rv-star{font-size:2rem;line-height:1;color:var(--line)}
 .rv-star.on{color:var(--accent)}
@@ -1532,7 +1541,7 @@ function renderReviews(list) {
   return `<p class="sub"><span class="rating" style="font-size:1.1rem">★ ${avg}</span> <span class="muted">(${list.length} review${list.length === 1 ? '' : 's'})</span></p>` + list.map(r => {
     const n = Math.min(5, Math.max(0, Math.round(Number(r.rating) || 0)));
     const d = r.created_at ? new Date(r.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-    return `<article class="card rv-item"><div class="row between"><strong style="color:var(--head)">${esc(r.user_name || 'Guest')}</strong><span class="muted">${esc(d)}</span></div><span class="rating">${stars(n)}</span>${r.comment ? `<p>${esc(r.comment)}</p>` : ''}</article>`;
+    return `<article class="card rv-item"><div class="row between"><strong style="color:var(--head)">${esc(r.user_name || 'Guest')}</strong><span class="muted">${esc(d)}</span></div><span class="rating">${stars(n)}</span>${r.comment ? `<p>${esc(r.comment)}</p>` : ''}${Array.isArray(r.images) && r.images.length ? `<div class="rv-imgs">${r.images.slice(0, 3).map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Review photo" loading="lazy"></a>`).join('')}</div>` : ''}</article>`;
   }).join('');
 }
 async function loadPitReviews() {
@@ -1541,7 +1550,7 @@ async function loadPitReviews() {
   if (!box) return;
   try {
     if (!sb) throw new Error('Not connected');
-    const { data, error } = await sb.from('pit_reviews').select('*').eq('pit_id', String(id)).order('created_at', { ascending: false }).limit(50);
+    const { data, error } = await sb.from('pit_reviews').select('*').eq('pit_id', String(id)).eq('approved', true).order('created_at', { ascending: false }).limit(50);
     if (error) throw error;
     const el = document.getElementById('reviews-list');
     if (el && state.viewing === id) el.innerHTML = renderReviews(data || []);
@@ -1552,7 +1561,8 @@ async function loadPitReviews() {
   }
 }
 
-let rvPit = null, rvRating = 0, rvBusy = false;
+let rvPit = null, rvRating = 0, rvBusy = false, rvFiles = [];
+const RV_MAX_IMAGES = 3, RV_MAX_MB = 5, RV_BUCKET = 'review-images';
 document.body.insertAdjacentHTML('beforeend', `
 <div class="fs" id="review-sheet" hidden>
   <div class="fs-backdrop" data-rv-close></div>
@@ -1560,7 +1570,8 @@ document.body.insertAdjacentHTML('beforeend', `
     <div class="fs-body">
       <div class="fs-head"><div><h2 id="rv-title">Write a review</h2><p class="muted" id="rv-pit"></p></div><button type="button" class="fs-reset" data-rv-close>Cancel</button></div>
       <section class="fs-sec"><h3>Your rating</h3><div class="rv-stars" role="group" aria-label="Star rating">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="rv-star" data-rv-star="${n}" aria-label="${n} star${n === 1 ? '' : 's'}" aria-pressed="false">★</button>`).join('')}</div></section>
-      <section class="fs-sec"><h3>Your review</h3><textarea id="rv-comment" maxlength="500" placeholder="Share your experience (optional)" aria-label="Your review"></textarea><p class="sub" id="rv-msg" role="status" aria-live="polite" hidden></p></section>
+      <section class="fs-sec"><h3>Your review</h3><textarea id="rv-comment" maxlength="500" placeholder="Share your experience (optional)" aria-label="Your review"></textarea></section>
+      <section class="fs-sec"><h3>Photos <span class="muted" style="font-weight:400">(up to 3)</span></h3><div class="rv-photos" id="rv-photos"></div><input type="file" id="rv-file" accept="image/*" multiple hidden><p class="sub" id="rv-msg" role="status" aria-live="polite" hidden></p></section>
     </div>
     <div class="fs-foot"><button type="button" class="btn" id="rv-submit" data-rv-submit>Submit review</button></div>
   </div>
@@ -1570,7 +1581,7 @@ document.body.insertAdjacentHTML('beforeend', `
   <div class="rs-panel" role="alertdialog" aria-modal="true" aria-labelledby="rvs-title" aria-describedby="rvs-text" tabindex="-1">
     <span class="rs-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
     <h2 id="rvs-title">Review submitted</h2>
-    <p id="rvs-text">Your review has been successfully submitted. Thank you for sharing your experience.</p>
+    <p id="rvs-text">Your review has been submitted and will appear once it has been approved. Thank you for sharing your experience.</p>
     <button type="button" class="btn" data-rvs-close>OK</button>
   </div>
 </div>`);
@@ -1590,11 +1601,28 @@ function syncReview() {
   const btn = document.getElementById('rv-submit');
   btn.textContent = rvBusy ? 'Sending…' : 'Submit review';
   btn.disabled = rvBusy;
+  const box = document.getElementById('rv-photos');
+  if (box) {
+    box.innerHTML = rvFiles.map((f, i) => `<div class="rv-photo"><img src="${f.url}" alt="Selected photo ${i + 1}"><button type="button" data-rv-photo-remove="${i}" aria-label="Remove photo ${i + 1}"${rvBusy ? ' disabled' : ''}>✕</button></div>`).join('')
+      + (rvFiles.length < RV_MAX_IMAGES ? `<button type="button" class="rv-add" data-rv-photo-add${rvBusy ? ' disabled' : ''}>+ Add photo</button>` : '');
+  }
+}
+function clearRvFiles() { rvFiles.forEach(f => URL.revokeObjectURL(f.url)); rvFiles = []; }
+function addRvFiles(fileList) {
+  let msg = '';
+  for (const file of Array.from(fileList)) {
+    if (rvFiles.length >= RV_MAX_IMAGES) { msg = `You can add up to ${RV_MAX_IMAGES} photos.`; break; }
+    if (!file.type.startsWith('image/')) { msg = 'Only image files are allowed.'; continue; }
+    if (file.size > RV_MAX_MB * 1024 * 1024) { msg = `Each photo must be under ${RV_MAX_MB} MB.`; continue; }
+    rvFiles.push({ file, url: URL.createObjectURL(file) });
+  }
+  setRvMsg(msg, !!msg);
+  syncReview();
 }
 function openReview(id) {
   const p = PITS[id];
   if (!p) return;
-  rvPit = id; rvRating = 0; rvBusy = false;
+  rvPit = id; rvRating = 0; rvBusy = false; clearRvFiles();
   document.getElementById('rv-pit').textContent = p.displayName;
   document.getElementById('rv-comment').value = '';
   setRvMsg('');
@@ -1622,7 +1650,17 @@ async function submitReview() {
   let ok = false;
   try {
     if (!sb || !session?.user?.id) throw new Error('Please sign in');
-    const { error } = await sb.from('pit_reviews').insert({ pit_id: String(p.id), pit_name: p.displayName, rating: rvRating, comment: comment || null, user_id: session.user.id, user_name: displayName() });
+    const imageUrls = [];
+    for (const f of rvFiles) {
+      const ext = (f.file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'jpg';
+      const path = `${session.user.id}/${String(p.id)}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const up = await sb.storage.from(RV_BUCKET).upload(path, f.file, { contentType: f.file.type, upsert: false });
+      if (up.error) throw up.error;
+      imageUrls.push(sb.storage.from(RV_BUCKET).getPublicUrl(path).data.publicUrl);
+    }
+    const row = { pit_id: String(p.id), pit_name: p.displayName, rating: rvRating, comment: comment || null, user_id: session.user.id, user_name: displayName() };
+    if (imageUrls.length) row.images = imageUrls;
+    const { error } = await sb.from('pit_reviews').insert(row);
     if (error) {
       if (error.code === '23505') setRvMsg('You’ve already reviewed this pit.', true);
       else throw error;
@@ -1633,18 +1671,26 @@ async function submitReview() {
   }
   rvBusy = false;
   syncReview();
-  if (ok) { closeReview(); showReviewSuccess(); loadPitReviews(); }
+  if (ok) { clearRvFiles(); closeReview(); showReviewSuccess(); loadPitReviews(); }
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-review-open],[data-rv-close],[data-rv-star],[data-rv-submit],[data-rvs-close]');
+  const t = e.target.closest('[data-review-open],[data-rv-close],[data-rv-star],[data-rv-submit],[data-rvs-close],[data-rv-photo-add],[data-rv-photo-remove]');
   if (!t) return;
-  if (t.dataset.reviewOpen) openReview(t.dataset.reviewOpen);
+  if ('rvPhotoAdd' in t.dataset) { if (!rvBusy) document.getElementById('rv-file').click(); }
+  else if ('rvPhotoRemove' in t.dataset) {
+    if (rvBusy) return;
+    const [f] = rvFiles.splice(Number(t.dataset.rvPhotoRemove), 1);
+    if (f) URL.revokeObjectURL(f.url);
+    syncReview();
+  }
+  else if (t.dataset.reviewOpen) openReview(t.dataset.reviewOpen);
   else if ('rvClose' in t.dataset) closeReview();
   else if ('rvSubmit' in t.dataset) submitReview();
   else if ('rvsClose' in t.dataset) closeReviewSuccess();
   else if (!rvBusy) { rvRating = rvRating === Number(t.dataset.rvStar) ? 0 : Number(t.dataset.rvStar); syncReview(); }
 });
+document.getElementById('rv-file').addEventListener('change', e => { addRvFiles(e.target.files); e.target.value = ''; });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!document.getElementById('review-success').hidden) closeReviewSuccess();
